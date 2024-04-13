@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::Path;
+use wasm_bindgen::prelude::*;
 
+#[wasm_bindgen]
 pub struct Chip8 {
   memory: [u8; 4096],
   display: [u8; 64 * 32],
@@ -12,7 +14,10 @@ pub struct Chip8 {
   registers: [u8; 16],
 }
 
+#[wasm_bindgen]
 impl Chip8 {
+  /// Create a new Chip8 instance
+  #[wasm_bindgen(constructor)]
   pub fn new() -> Chip8 {
     Self {
       memory: [0; 4096],
@@ -26,6 +31,7 @@ impl Chip8 {
     }
   }
 
+  /// Load the default font into memory at 0x0050
   pub fn load_font(&mut self) {
     let fontset: [u8; 80] = [
       0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -49,16 +55,25 @@ impl Chip8 {
     memory_slice.copy_from_slice(fontset.as_slice());
   }
 
-  pub fn load_rom(&mut self, rom: &str) {
+  /// Load a ROM into memory at 0x0200 from a file
+  pub fn load_rom_from_file(&mut self, rom: &str) {
     let bytes = fs::read(Path::new(rom)).expect("Failed to load ROM");
     let memory_slice = &mut self.memory[0x200..0x200 + bytes.len()];
     memory_slice.copy_from_slice(bytes.as_slice());
   }
 
-  pub fn get_display(&self) -> &[u8] {
-    &self.display
+  /// Load a ROM into memory at 0x0200 from a sequence of Uint8s
+  pub fn load_rom_from_bytes(&mut self, bytes: Vec<u8>) {
+    let memory_slice = &mut self.memory[0x200..0x200 + bytes.len()];
+    memory_slice.copy_from_slice(bytes.as_slice());
   }
 
+  /// Get screen pixel data as a sequence of Uint8s
+  pub fn get_display(&self) -> Vec<u8> {
+    Vec::from(&self.display)
+  }
+
+  /// Execute the next instruction at the program counter
   pub fn run(&mut self) {
     // Fetch the next 16-bit instruction
     let op1 = self.memory[self.pc as usize];

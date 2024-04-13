@@ -25,7 +25,7 @@ fn main() {
     let mut input = WinitInputHelper::new();
     let mut chip8 = Chip8::new();
     chip8.load_font();
-    chip8.load_rom("./roms/timendus/5-quirks.ch8");
+    chip8.load_rom_from_file("./roms/timendus/5-quirks.ch8");
 
     event_loop.set_control_flow(ControlFlow::Poll);
     

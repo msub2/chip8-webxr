@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chip-8 Emulator</title>
+</head>
+
+<body>
+  <canvas id="canvas" width="640" height="320"></canvas>
+  <script type="module">
+    import init, { Chip8 } from './pkg/chip8_web.js';
+
+    await init();
+    const test = await fetch('/roms/timendus/1-chip8-logo.ch8');
+    const rom = await test.arrayBuffer();
+    const romBuffer = new Uint8Array(rom);
+
+    const chip8 = new Chip8();
+    chip8.load_rom_from_bytes(romBuffer);
+
+    /** @type {HTMLCanvasElement} */
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const scaleFactor = 10;
+
+    const newArray = new Uint8ClampedArray(64 * 32 * 4);
+
+    function draw() {
+      chip8.run();
+      chip8.get_display().forEach((value, idx) => {
+        newArray[idx * 4] = value * 255;
+        newArray[idx * 4 + 1] = value * 255;
+        newArray[idx * 4 + 2] = value * 255;
+        newArray[idx * 4 + 3] = 255;
+      });
+
+      // Adjusting the scale
+      const scaledImageData = scaleImageData(newArray, 64, scaleFactor);
+      ctx.putImageData(scaledImageData, 0, 0);
+      requestAnimationFrame(draw);
+    };
+
+    function scaleImageData(imageData, width, scaleFactor) {
+      // Calculate the dimensions of the scaled image data
+      const scaledImageData = ctx.createImageData(width * scaleFactor, imageData.length / (width * 4) * scaleFactor);
+
+      // Loop through each pixel in the scaled image data
+      for (let y = 0; y < scaledImageData.height; y++) {
+        for (let x = 0; x < scaledImageData.width; x++) {
+          // Calculate the corresponding original (unscaled) coordinates
+          const originalX = Math.floor(x / scaleFactor);
+          const originalY = Math.floor(y / scaleFactor);
+
+          // Calculate the index of the original pixel in the original image data array
+          const originalIndex = (originalY * width + originalX) * 4;
+
+          // Calculate the index of the current pixel in the scaled image data array
+          const scaledIndex = (y * scaledImageData.width + x) * 4;
+
+          // Copy pixel data from the original image data to the scaled image data
+          for (let i = 0; i < 4; i++) {
+            scaledImageData.data[scaledIndex + i] = imageData[originalIndex + i];
+          }
+        }
+      }
+
+      // Return the scaled image data
+      return scaledImageData;
+    }
+
+    draw();
+  </script>
+</body>
+
+</html>
