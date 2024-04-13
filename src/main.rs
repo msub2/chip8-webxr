@@ -15,6 +15,7 @@ fn main() {
     let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new()
         .with_inner_size(LogicalSize::new(640, 320))
+        .with_title("Chip8 Emulator")
         .build(&event_loop)
         .unwrap();
     let mut pixels = {
@@ -25,7 +26,7 @@ fn main() {
     let mut input = WinitInputHelper::new();
     let mut chip8 = Chip8::new();
     chip8.load_font();
-    chip8.load_rom_from_file("./roms/timendus/5-quirks.ch8");
+    chip8.load_rom_from_file("./roms/timendus/6-keypad.ch8");
 
     event_loop.set_control_flow(ControlFlow::Poll);
     
@@ -38,10 +39,7 @@ fn main() {
                 println!("The close button was pressed; stopping");
                 elwt.exit();
             },
-            Event::WindowEvent {
-                event: WindowEvent::RedrawRequested,
-                ..
-            } => {
+            Event::AboutToWait => {
                 chip8.run();
                 let display = chip8.get_display();
                 let frame = pixels.frame_mut();
@@ -56,7 +54,6 @@ fn main() {
                     println!("pixels.render() failed: {}", err);
                     elwt.exit();
                 }
-                window.request_redraw();
             },
             _ => ()
         }
@@ -65,6 +62,31 @@ fn main() {
             // Close events
             if input.key_pressed(KeyCode::Escape) || input.close_requested() {
                 elwt.exit();
+            }
+
+            for (key, value) in [
+                (KeyCode::Digit1, 0),
+                (KeyCode::Digit2, 1),
+                (KeyCode::Digit3, 2),
+                (KeyCode::Digit4, 3),
+                (KeyCode::KeyQ, 4),
+                (KeyCode::KeyW, 5),
+                (KeyCode::KeyE, 6),
+                (KeyCode::KeyR, 7),
+                (KeyCode::KeyA, 8),
+                (KeyCode::KeyS, 9),
+                (KeyCode::KeyD, 10),
+                (KeyCode::KeyF, 11),
+                (KeyCode::KeyZ, 12),
+                (KeyCode::KeyX, 13),
+                (KeyCode::KeyC, 14),
+                (KeyCode::KeyV, 15),
+            ] {
+                if input.key_pressed(key) {
+                    chip8.set_keypad_state(value, true);
+                } else if input.key_released(key) {
+                    chip8.set_keypad_state(value, false);
+                }
             }
         }
     });

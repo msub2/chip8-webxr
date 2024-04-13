@@ -12,6 +12,8 @@ pub struct Chip8 {
   delay_timer: u8,
   sound_timer: u8,
   registers: [u8; 16],
+  keypad: [bool; 16],
+  keypad_prev: [bool; 16],
 }
 
 #[wasm_bindgen]
@@ -28,6 +30,8 @@ impl Chip8 {
       delay_timer: 0,
       sound_timer: 0,
       registers: [0; 16],
+      keypad: [false; 16],
+      keypad_prev: [false; 16],
     }
   }
 
@@ -124,7 +128,6 @@ impl Chip8 {
         // Skip next instruction if VX == VY
         let register1 = ((op & 0x0F00) >> 8) as usize;
         let register2 = ((op & 0x00F0) >> 4) as usize;
-        println!("{}:{} == {}:{}", register1, self.registers[register1], register2, self.registers[register2]);
         if self.registers[register1] == self.registers[register2] {
           self.pc += 2;
         }
@@ -252,10 +255,20 @@ impl Chip8 {
         let lsb2 = op & 0x00FF;
         match lsb2 {
           0x9E => {
-            // TODO: Skip next instruction if key stored in VX is pressed
+            // Skip next instruction if key stored in VX is pressed
+            let register = ((op & 0x0F00) >> 8) as usize;
+            let index = self.get_keypad_index_from_value(self.registers[register]);
+            if self.keypad[index] {
+              self.pc += 2;
+            }
           },
           0xA1 => {
-            // TODO: Skip next instruction if key stored in VX is not pressed
+            // Skip next instruction if key stored in VX is not pressed
+            let register = ((op & 0x0F00) >> 8) as usize;
+            let index = self.get_keypad_index_from_value(self.registers[register]);
+            if !self.keypad[index] {
+              self.pc += 2;
+            }
           },
           _ => {
             println!("Unknown opcode: 0x{:04X}", op);
@@ -271,7 +284,17 @@ impl Chip8 {
             self.registers[register] = self.delay_timer;
           },
           0x0A => {
-            // TODO: Wait for key press and store in VX
+            // Wait for key press and store in VX
+            let register = ((op & 0x0F00) >> 8) as usize;
+            if !self.keypad.iter().any(|key| *key) {
+              self.pc -= 2;
+            } else {
+              // Store the first key in the keypad that is pressed
+              let key_index = self.keypad.iter().position(|key| *key).unwrap();
+              if !self.keypad[key_index] && self.keypad_prev[key_index] {
+                self.registers[register] = self.get_keypad_value_from_index(key_index as u8);
+              }
+            }
           },
           0x15 => {
             // Set delay timer to VX
@@ -327,6 +350,75 @@ impl Chip8 {
       _ => {
         println!("Unknown opcode: 0x{:04X}", op);
       }
+    }
+
+    // Update timers
+    if self.delay_timer > 0 {
+      self.delay_timer -= 1;
+    }
+    if self.sound_timer > 0 {
+      if self.sound_timer == 1 {
+        println!("BEEP!");
+      } else {
+        self.sound_timer -= 1;
+      }
+    }
+
+    // Update keypad states
+    for i in 0..self.keypad.len() {
+      self.keypad_prev[i] = self.keypad[i];
+    }
+  }
+
+  pub fn set_keypad_state(&mut self, key_index: u8, value: bool) {
+    self.keypad[key_index as usize] = value;
+  }
+
+  fn get_keypad_value_from_index(&self, key_index: u8) -> u8 {
+    // TODO: Account for keypad layout variations
+    // Assuming standard for now
+    match key_index {
+      0 => 0x1,
+      1 => 0x2,
+      2 => 0x3,
+      3 => 0xC,
+      4 => 0x4,
+      5 => 0x5,
+      6 => 0x6,
+      7 => 0xD,
+      8 => 0x7,
+      9 => 0x8,
+      10 => 0x9,
+      11 => 0xE,
+      12 => 0xA,
+      13 => 0x0,
+      14 => 0xB,
+      15 => 0xF,
+      _ => 0x0 // Shouldn't reach here
+    }
+  }
+
+  fn get_keypad_index_from_value(&self, value: u8) -> usize {
+    // TODO: Account for keypad layout variations
+    // Assuming standard for now
+    match value {
+      0x1 => 0,
+      0x2 => 1,
+      0x3 => 2,
+      0xC => 3,
+      0x4 => 4,
+      0x5 => 5,
+      0x6 => 6,
+      0xD => 7,
+      0x7 => 8,
+      0x8 => 9,
+      0x9 => 10,
+      0xE => 11,
+      0xA => 12,
+      0x0 => 13,
+      0xB => 14,
+      0xF => 15,
+      _ => 0
     }
   }
 }
