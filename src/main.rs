@@ -29,7 +29,7 @@ fn main() {
     let mut input = WinitInputHelper::new();
     let mut chip8 = Chip8::new();
     chip8.load_font();
-    chip8.load_rom_from_file("./roms/timendus/7-beep.ch8");
+    chip8.load_rom_from_file("./roms/timendus/5-quirks.ch8");
 
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
     let sink = Sink::try_new(&stream_handle).unwrap();
@@ -51,6 +51,9 @@ fn main() {
             Event::AboutToWait => {
                 for _ in 0..10 {
                     chip8.run();
+                    if chip8.displayed_this_frame() {
+                        break;
+                    }
                 }
                 chip8.decrement_timers();
                 let display = chip8.get_display();

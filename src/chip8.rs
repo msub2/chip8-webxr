@@ -2,6 +2,9 @@ use std::fs;
 use std::path::Path;
 use wasm_bindgen::prelude::*;
 
+// TODO: Account for this during creation
+const MODE: &str = "chip8";
+
 #[wasm_bindgen]
 pub struct Chip8 {
   memory: [u8; 4096],
@@ -14,6 +17,7 @@ pub struct Chip8 {
   registers: [u8; 16],
   keypad: [bool; 16],
   keypad_prev: [bool; 16],
+  displayed: bool,
 }
 
 #[wasm_bindgen]
@@ -32,6 +36,7 @@ impl Chip8 {
       registers: [0; 16],
       keypad: [false; 16],
       keypad_prev: [false; 16],
+      displayed: false,
     }
   }
 
@@ -79,6 +84,8 @@ impl Chip8 {
 
   /// Execute the next instruction at the program counter
   pub fn run(&mut self) {
+    self.displayed = false;
+
     // Fetch the next 16-bit instruction
     let op1 = self.memory[self.pc as usize];
     let op2 = self.memory[(self.pc + 1) as usize];
@@ -156,14 +163,23 @@ impl Chip8 {
           1 => {
             // Set register VX to VX | VY
             self.registers[register1] = self.registers[register1] | self.registers[register2];
+            if MODE == "chip8" {
+              self.registers[0xF] = 0;
+            }
           },
           2 => {
             // Set register VX to VX & VY
             self.registers[register1] = self.registers[register1] & self.registers[register2];
+            if MODE == "chip8" {
+              self.registers[0xF] = 0;
+            }
           },
           3 => {
             // Set register VX to VX ^ VY
             self.registers[register1] = self.registers[register1] ^ self.registers[register2];
+            if MODE == "chip8" {
+              self.registers[0xF] = 0;
+            }
           },
           4 => {
             // Add the value of register VY to register VX
@@ -232,24 +248,33 @@ impl Chip8 {
       },
       0xD000 => {
         // Draw sprite
-        let x = self.registers[((op & 0x0F00) >> 8) as usize] as u16 % 64;
-        let y = self.registers[((op & 0x00F0) >> 4) as usize] as u16 % 32;
+        let x = self.registers[((op & 0x0F00) >> 8) as usize] as u16;
+        let y = self.registers[((op & 0x00F0) >> 4) as usize] as u16;
         let height = op & 0x000F;
 
         self.registers[0xF] = 0;
 
         for row in 0..height {
+          if MODE == "chip8" && y + row == 32 {
+            break;
+          }
           let sprite = self.memory[(self.i + row) as usize];
           for column in 0..8 {
+            if MODE == "chip8" && x + column == 64 {
+              break;
+            }
             // 0x80 is 0b10000000, this iterates through each bit
             if (sprite & (0x80 >> column)) != 0 {
-              if self.display[(x + column + (y + row) * 64) as usize] == 1 {
+              let pixel = (((x + column) % 64) + (((y + row) % 32) * 64)) as usize;
+              if self.display[pixel] == 1 {
                 self.registers[0xF] = 1;
               }
-              self.display[(x + column + (y + row) * 64) as usize] ^= 1;
+              self.display[pixel] ^= 1;
             }
           }
         }
+
+        self.displayed = true;
       },
       0xE000 => {
         let lsb2 = op & 0x00FF;
@@ -373,6 +398,10 @@ impl Chip8 {
 
   pub fn get_sound_timer(&self) -> u8 {
     self.sound_timer
+  }
+
+  pub fn displayed_this_frame(&self) -> bool {
+    self.displayed
   }
 
   fn get_keypad_value_from_index(&self, key_index: u8) -> u8 {

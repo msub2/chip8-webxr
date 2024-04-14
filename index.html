@@ -31,7 +31,7 @@
     import init, { Chip8 } from './pkg/chip8_web.js';
 
     await init();
-    const test = await fetch('/roms/Animal Race [Brian Astle].ch8');
+    const test = await fetch('/roms/timendus/5-quirks.ch8');
     const rom = await test.arrayBuffer();
     const romBuffer = new Uint8Array(rom);
 
