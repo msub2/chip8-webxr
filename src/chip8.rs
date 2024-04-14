@@ -93,179 +93,161 @@ impl Chip8 {
     self.pc += 2;
 
     // Decode and execute the instruction
-    let leading_bit = op & 0xF000;
-    match leading_bit {
-      0x0000 => {
-        if op == 0x00E0 {
-          // Clear the display
-          self.display.fill(0);
-        } else if op == 0x00EE {
-          // Return from subroutine
-          self.pc = self.stack.pop().unwrap();
-        } else {
-          println!("Unknown opcode: 0x{:04X}", op);
-        }
+    let op_1 = op & 0xF000;
+    let op_2 = op & 0x0F00;
+    let op_3 = op & 0x00F0;
+    let op_4 = op & 0x000F;
+    let x = ((op & 0x0F00) >> 8) as usize;
+    let y = ((op & 0x00F0) >> 4) as usize;
+    let nnn = op & 0x0FFF;
+    let nn = (op & 0x00FF) as u8;
+    let n = (op & 0x000F) as u8;
+
+    match (op_1, op_2, op_3, op_4) {
+      (0x0000, 0x0000, 0x00E0, 0x0000) => {
+        // Clear the display
+        self.display.fill(0);
       },
-      0x1000 => {
+      (0x0000, 0x0000, 0x00E0, 0x000E) => {
+        // Return from subroutine
+        self.pc = self.stack.pop().unwrap();
+      },
+      (0x1000, _, _, _) => {
         // Jump to address NNN
-        self.pc = op & 0x0FFF;
+        self.pc = nnn;
       },
-      0x2000 => {
+      (0x2000, _, _, _) => {
         // Call subroutine at NNN
         self.stack.push(self.pc);
-        self.pc = op & 0x0FFF;
+        self.pc = nnn;
       },
-      0x3000 => {
+      (0x3000, _, _, _) => {
         // Skip next instruction if VX == NN
-        let register = ((op & 0x0F00) >> 8) as usize;
-        let value = (op & 0x00FF) as u8;
-        if self.registers[register] == value {
+        if self.registers[x] == nn {
           self.pc += 2;
         }
       },
-      0x4000 => {
+      (0x4000, _, _, _) => {
         // Skip next instruction if VX != NN
-        let register = ((op & 0x0F00) >> 8) as usize;
-        let value = (op & 0x00FF) as u8;
-        if self.registers[register] != value {
+        if self.registers[x] != nn {
           self.pc += 2;
         }
       },
-      0x5000 => {
+      (0x5000, _, _, _) => {
         // Skip next instruction if VX == VY
-        let register1 = ((op & 0x0F00) >> 8) as usize;
-        let register2 = ((op & 0x00F0) >> 4) as usize;
-        if self.registers[register1] == self.registers[register2] {
+        if self.registers[x] == self.registers[y] {
           self.pc += 2;
         }
       },
-      0x6000 => {
+      (0x6000, _, _, _) => {
         // Store number NN in register VX
-        let register = ((op & 0x0F00) >> 8) as usize;
-        let value = (op & 0x00FF) as u8;
-        self.registers[register] = value;
+        self.registers[x] = nn;
       },
-      0x7000 => {
+      (0x7000, _, _, _) => {
         // Add number NN to register VX
-        let register = ((op & 0x0F00) >> 8) as usize;
-        let value = (op & 0x00FF) as u8;
-        self.registers[register] = self.registers[register].wrapping_add(value);
+        self.registers[x] = self.registers[x].wrapping_add(nn);
       },
-      0x8000 => {
-        let register1 = ((op & 0x0F00) >> 8) as usize;
-        let register2 = ((op & 0x00F0) >> 4) as usize;
-        let lsb = op & 0x000F;
-        match lsb {
-          0 => {
-            // Store value of register VY in register VX
-            self.registers[register1] = self.registers[register2];
-          },
-          1 => {
-            // Set register VX to VX | VY
-            self.registers[register1] = self.registers[register1] | self.registers[register2];
-            if MODE == "chip8" {
-              self.registers[0xF] = 0;
-            }
-          },
-          2 => {
-            // Set register VX to VX & VY
-            self.registers[register1] = self.registers[register1] & self.registers[register2];
-            if MODE == "chip8" {
-              self.registers[0xF] = 0;
-            }
-          },
-          3 => {
-            // Set register VX to VX ^ VY
-            self.registers[register1] = self.registers[register1] ^ self.registers[register2];
-            if MODE == "chip8" {
-              self.registers[0xF] = 0;
-            }
-          },
-          4 => {
-            // Add the value of register VY to register VX
-            // Set VF to 01 if a carry occurs
-            // Set VF to 00 if a carry does not occur
-            let (result, overflow) = self.registers[register1].overflowing_add(self.registers[register2]);
-            self.registers[register1] = result;
-            self.registers[0xF] = if overflow { 1 } else { 0 };
-          },
-          5 => {
-            // Subtract the value of register VY from register VX
-            // Set VF to 00 if a borrow occurs
-            // Set VF to 01 if a borrow does not occur
-            let (result, overflow) = self.registers[register1].overflowing_sub(self.registers[register2]);
-            self.registers[register1] = result;
-            self.registers[0xF] = if overflow { 0 } else { 1 };
-          },
-          6 => {
-            // Set register VX to VY >> 1
-            // Set register VF to the least significant bit prior to the shift
-            let lsb = self.registers[register1] & 0x01;
-            self.registers[register1] = self.registers[register2] >> 1;
-            self.registers[0xF] = lsb;
-          },
-          7 => {
-            // Set register VX to VY - VX
-            // Set VF to 00 if a borrow occurs
-            // Set VF to 01 if a borrow does not occur
-            let (result, overflow) = self.registers[register2].overflowing_sub(self.registers[register1]);
-            self.registers[register1] = result;
-            self.registers[0xF] = if overflow { 0 } else { 1 };
-          },
-          0xE => {
-            // Set register VX to VY << 1
-            // Set register VF to the most significant bit prior to the shift
-            let msb = (self.registers[register1] & 0x80) >> 7;
-            self.registers[register1] = self.registers[register2] << 1;
-            self.registers[0xF] = msb;
-          }
-          _ => {
-            println!("Unknown opcode: 0x{:04X}", op);
-          }
+      (0x8000, _, _, 0x0000) => {
+        // Store value of register VY in register VX
+        self.registers[x] = self.registers[y];
+      },
+      (0x8000, _, _, 0x0001) => {
+        // Set register VX to VX | VY
+        self.registers[x] = self.registers[x] | self.registers[y];
+        if MODE == "chip8" {
+          self.registers[0xF] = 0;
         }
       },
-      0x9000 => {
+      (0x8000, _, _, 0x0002) => {
+        // Set register VX to VX & VY
+        self.registers[x] = self.registers[x] & self.registers[y];
+        if MODE == "chip8" {
+          self.registers[0xF] = 0;
+        }
+      },
+      (0x8000, _, _, 0x0003) => {
+        // Set register VX to VX ^ VY
+        self.registers[x] = self.registers[x] ^ self.registers[y];
+        if MODE == "chip8" {
+          self.registers[0xF] = 0;
+        }
+      },
+      (0x8000, _, _, 0x0004) => {
+        // Add the value of register VY to register VX
+        // Set VF to 01 if a carry occurs
+        // Set VF to 00 if a carry does not occur
+        let (result, overflow) = self.registers[x].overflowing_add(self.registers[y]);
+        self.registers[x] = result;
+        self.registers[0xF] = if overflow { 1 } else { 0 };
+      },
+      (0x8000, _, _, 0x0005) => {
+        // Subtract the value of register VY from register VX
+        // Set VF to 00 if a borrow occurs
+        // Set VF to 01 if a borrow does not occur
+        let (result, overflow) = self.registers[x].overflowing_sub(self.registers[y]);
+        self.registers[x] = result;
+        self.registers[0xF] = if overflow { 0 } else { 1 };
+      },
+      (0x8000, _, _, 0x0006) => {
+        // Set register VX to VY >> 1
+        // Set register VF to the least significant bit prior to the shift
+        let lsb = self.registers[x] & 0x01;
+        self.registers[x] = self.registers[y] >> 1;
+        self.registers[0xF] = lsb;
+      },
+      (0x8000, _, _, 0x0007) => {
+        // Set register VX to VY - VX
+        // Set VF to 00 if a borrow occurs
+        // Set VF to 01 if a borrow does not occur
+        let (result, overflow) = self.registers[y].overflowing_sub(self.registers[x]);
+        self.registers[x] = result;
+        self.registers[0xF] = if overflow { 0 } else { 1 };
+      },
+      (0x8000, _, _, 0x000E) => {
+        // Set register VX to VY << 1
+        // Set register VF to the most significant bit prior to the shift
+        let msb = (self.registers[x] & 0x80) >> 7;
+        self.registers[x] = self.registers[y] << 1;
+        self.registers[0xF] = msb;
+      },
+      (0x9000, _, _, _) => {
         // Skip next instruction if VX != VY
-        let register1 = ((op & 0x0F00) >> 8) as usize;
-        let register2 = ((op & 0x00F0) >> 4) as usize;
-        if self.registers[register1] != self.registers[register2] {
+        if self.registers[x] != self.registers[y] {
           self.pc += 2;
         }
       },
-      0xA000 => {
+      (0xA000, _, _, _) => {
         // Store address NNN in register I
-        self.i = op & 0x0FFF;
+        self.i = nnn;
       },
-      0xB000 => {
+      (0xB000, _, _, _) => {
         // Jump to address NNN + V0
-        self.pc = (op & 0x0FFF) + self.registers[0] as u16;
+        self.pc = nnn + self.registers[0] as u16;
       },
-      0xC000 => {
+      (0xC000, _, _, _) => {
         // Set VX to a random number with a mask of NN
-        let register = ((op & 0x0F00) >> 8) as usize;
-        let mask = (op & 0x00FF) as u8;
-        self.registers[register] = rand::random::<u8>() & mask;
+        self.registers[x] = rand::random::<u8>() & nn;
       },
-      0xD000 => {
+      (0xD000, _, _, _) => {
         // Draw sprite
-        let x = self.registers[((op & 0x0F00) >> 8) as usize] as u16;
-        let y = self.registers[((op & 0x00F0) >> 4) as usize] as u16;
-        let height = op & 0x000F;
+        let x_val = self.registers[x] as u16;
+        let y_val = self.registers[y] as u16;
+        let height = n as u16;
 
         self.registers[0xF] = 0;
 
         for row in 0..height {
-          if MODE == "chip8" && y + row == 32 {
+          if MODE == "chip8" && y_val + row == 32 {
             break;
           }
           let sprite = self.memory[(self.i + row) as usize];
           for column in 0..8 {
-            if MODE == "chip8" && x + column == 64 {
+            if MODE == "chip8" && x_val + column == 64 {
               break;
             }
             // 0x80 is 0b10000000, this iterates through each bit
             if (sprite & (0x80 >> column)) != 0 {
-              let pixel = (((x + column) % 64) + (((y + row) % 32) * 64)) as usize;
+              let pixel = (((x_val + column) % 64) + (((y_val + row) % 32) * 64)) as usize;
               if self.display[pixel] == 1 {
                 self.registers[0xF] = 1;
               }
@@ -276,102 +258,75 @@ impl Chip8 {
 
         self.displayed = true;
       },
-      0xE000 => {
-        let lsb2 = op & 0x00FF;
-        match lsb2 {
-          0x9E => {
-            // Skip next instruction if key stored in VX is pressed
-            let register = ((op & 0x0F00) >> 8) as usize;
-            let index = self.get_keypad_index_from_value(self.registers[register]);
-            if self.keypad[index] {
-              self.pc += 2;
-            }
-          },
-          0xA1 => {
-            // Skip next instruction if key stored in VX is not pressed
-            let register = ((op & 0x0F00) >> 8) as usize;
-            let index = self.get_keypad_index_from_value(self.registers[register]);
-            if !self.keypad[index] {
-              self.pc += 2;
-            }
-          },
-          _ => {
-            println!("Unknown opcode: 0x{:04X}", op);
+      (0xE000, _, 0x0090, 0x000E) => {
+        // Skip next instruction if key stored in VX is pressed
+        let index = self.get_keypad_index_from_value(self.registers[x]);
+        if self.keypad[index] {
+          self.pc += 2;
+        }
+      },
+      (0xE000, _, 0x00A0, 0x0001) => {
+        // Skip next instruction if key stored in VX is not pressed
+        let index = self.get_keypad_index_from_value(self.registers[x]);
+        if !self.keypad[index] {
+          self.pc += 2;
+        }
+      },
+      (0xF000, _, 0x0000, 0x0007) => {
+        // Set VX to value of delay timer
+        self.registers[x] = self.delay_timer;
+      },
+      (0xF000, _, 0x0000, 0x000A) => {
+        // Wait for key press and store in VX
+        if !self.keypad.iter().any(|key| *key) {
+          self.pc -= 2;
+        } else {
+          // Store the first key in the keypad that is pressed
+          let key_index = self.keypad.iter().position(|key| *key).unwrap();
+          if !self.keypad[key_index] && self.keypad_prev[key_index] {
+            self.registers[x] = self.get_keypad_value_from_index(key_index as u8);
           }
         }
       },
-      0xF000 => {
-        let lsb2 = op & 0x00FF;
-        match lsb2 {
-          0x07 => {
-            // Set VX to value of delay timer
-            let register = ((op & 0x0F00) >> 8) as usize;
-            self.registers[register] = self.delay_timer;
-          },
-          0x0A => {
-            // Wait for key press and store in VX
-            let register = ((op & 0x0F00) >> 8) as usize;
-            if !self.keypad.iter().any(|key| *key) {
-              self.pc -= 2;
-            } else {
-              // Store the first key in the keypad that is pressed
-              let key_index = self.keypad.iter().position(|key| *key).unwrap();
-              if !self.keypad[key_index] && self.keypad_prev[key_index] {
-                self.registers[register] = self.get_keypad_value_from_index(key_index as u8);
-              }
-            }
-          },
-          0x15 => {
-            // Set delay timer to VX
-            let register = ((op & 0x0F00) >> 8) as usize;
-            self.delay_timer = self.registers[register];
-          },
-          0x18 => {
-            // Set sound timer to VX
-            let register = ((op & 0x0F00) >> 8) as usize;
-            self.sound_timer = self.registers[register];
-          },
-          0x1E => {
-            // Add VX to I
-            let register = ((op & 0x0F00) >> 8) as usize;
-            self.i = self.i.wrapping_add(self.registers[register] as u16);
-          },
-          0x29 => {
-            // Set I to the memory address of the sprite data corresponding to the hex digit stored in register VX
-            let register = ((op & 0x0F00) >> 8) as usize;
-            let digit = self.registers[register];
-            self.i = 0x050 + (digit * 5) as u16;
-          },
-          0x33 => {
-            // Store BCD representation of VX in memory locations I, I+1, and I+2
-            let register = ((op & 0x0F00) >> 8) as usize;
-            self.memory[self.i as usize] = self.registers[register] / 100;
-            self.memory[self.i as usize + 1] = (self.registers[register] / 10) % 10;
-            self.memory[self.i as usize + 2] = (self.registers[register] % 100) % 10;
-          },
-          0x55 => {
-            // Store the values of registers V0 to VX inclusive in memory starting at address I
-            // I is set to I + X + 1 after operation
-            let register = ((op & 0x0F00) >> 8) as usize;
-            for i in 0..(register + 1) {
-              self.memory[self.i as usize + i] = self.registers[i];
-            }
-            self.i = self.i.wrapping_add(register as u16 + 1);
-          },
-          0x65 => {
-            // Fill registers V0 to VX inclusive with the values stored in memory starting at address I
-            // I is set to I + X + 1 after operation
-            let register = ((op & 0x0F00) >> 8) as usize;
-            for i in 0..(register + 1) {
-              self.registers[i] = self.memory[self.i as usize + i];
-            }
-            self.i = self.i.wrapping_add(register as u16 + 1);
-          },
-          _ => {
-            println!("Unknown opcode: 0x{:04X}", op);
-          }
-        }
+      (0xF000, _, 0x0010, 0x0005) => {
+        // Set delay timer to VX
+        self.delay_timer = self.registers[x];
       },
+      (0xF000, _, 0x0010, 0x0008) => {
+        // Set sound timer to VX
+        self.sound_timer = self.registers[x];
+      },
+      (0xF000, _, 0x0010, 0x000E) => {
+        // Add VX to I
+        self.i = self.i.wrapping_add(self.registers[x] as u16);
+      },
+      (0xF000, _, 0x0020, 0x0009) => {
+        // Set I to the memory address of the sprite data corresponding to the hex digit stored in register VX
+        let digit = self.registers[x];
+        self.i = 0x050 + (digit * 5) as u16;
+      },
+      (0xF000, _, 0x0030, 0x0003) => {
+        // Store BCD representation of VX in memory locations I, I+1, and I+2
+        self.memory[self.i as usize] = self.registers[x] / 100;
+        self.memory[self.i as usize + 1] = (self.registers[x] / 10) % 10;
+        self.memory[self.i as usize + 2] = (self.registers[x] % 100) % 10;
+      },
+      (0xF000, _, 0x0050, 0x0005) => {
+        // Store the values of registers V0 to VX inclusive in memory starting at address I
+        // I is set to I + X + 1 after operation
+        for i in 0..(x + 1) {
+          self.memory[self.i as usize + i] = self.registers[i];
+        }
+        self.i = self.i.wrapping_add(x as u16 + 1);
+      },
+      (0xF000, _, 0x0060, 0x0005) => {
+        // Fill registers V0 to VX inclusive with the values stored in memory starting at address I
+        // I is set to I + X + 1 after operation
+        for i in 0..(x + 1) {
+          self.registers[i] = self.memory[self.i as usize + i];
+        }
+        self.i = self.i.wrapping_add(x as u16 + 1);
+      }
       _ => {
         println!("Unknown opcode: 0x{:04X}", op);
       }
