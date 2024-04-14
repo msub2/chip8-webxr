@@ -184,7 +184,7 @@ impl Chip8 {
           6 => {
             // Set register VX to VY >> 1
             // Set register VF to the least significant bit prior to the shift
-            let lsb = self.registers[register2] & 0x01;
+            let lsb = self.registers[register1] & 0x01;
             self.registers[register1] = self.registers[register2] >> 1;
             self.registers[0xF] = lsb;
           },
@@ -199,7 +199,7 @@ impl Chip8 {
           0xE => {
             // Set register VX to VY << 1
             // Set register VF to the most significant bit prior to the shift
-            let msb = (self.registers[register2] & 0x80) >> 7;
+            let msb = (self.registers[register1] & 0x80) >> 7;
             self.registers[register1] = self.registers[register2] << 1;
             self.registers[0xF] = msb;
           }
