@@ -1,6 +1,8 @@
 mod chip8;
+mod square_wave;
 
 use pixels::{Pixels, SurfaceTexture};
+use rodio::{source::Source, OutputStream, Sink};
 use winit::{
     dpi::LogicalSize,
     event::{Event, WindowEvent},
@@ -10,6 +12,7 @@ use winit::{
 };
 use winit_input_helper::WinitInputHelper;
 use chip8::Chip8;
+use square_wave::SquareWave;
 
 fn main() {
     let event_loop = EventLoop::new().unwrap();
@@ -26,7 +29,13 @@ fn main() {
     let mut input = WinitInputHelper::new();
     let mut chip8 = Chip8::new();
     chip8.load_font();
-    chip8.load_rom_from_file("./roms/timendus/6-keypad.ch8");
+    chip8.load_rom_from_file("./roms/timendus/7-beep.ch8");
+
+    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+    let sink = Sink::try_new(&stream_handle).unwrap();
+    // Add a dummy source of the sake of the example.
+    let source = SquareWave::new(440.0).amplify(0.10);
+    sink.append(source);
 
     event_loop.set_control_flow(ControlFlow::Poll);
     
@@ -53,6 +62,13 @@ fn main() {
                 if let Err(err) = pixels.render() {
                     println!("pixels.render() failed: {}", err);
                     elwt.exit();
+                }
+
+                let sound_timer = chip8.get_sound_timer();
+                if sound_timer > 0 && sink.is_paused() {
+                    sink.play();
+                } else if sound_timer == 0 && !sink.is_paused() {
+                    sink.pause();
                 }
             },
             _ => ()

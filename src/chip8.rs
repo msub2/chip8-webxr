@@ -357,11 +357,7 @@ impl Chip8 {
       self.delay_timer -= 1;
     }
     if self.sound_timer > 0 {
-      if self.sound_timer == 1 {
-        println!("BEEP!");
-      } else {
-        self.sound_timer -= 1;
-      }
+      self.sound_timer -= 1;
     }
 
     // Update keypad states
@@ -372,6 +368,10 @@ impl Chip8 {
 
   pub fn set_keypad_state(&mut self, key_index: u8, value: bool) {
     self.keypad[key_index as usize] = value;
+  }
+
+  pub fn get_sound_timer(&self) -> u8 {
+    self.sound_timer
   }
 
   fn get_keypad_value_from_index(&self, key_index: u8) -> u8 {
