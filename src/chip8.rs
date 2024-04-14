@@ -352,14 +352,6 @@ impl Chip8 {
       }
     }
 
-    // Update timers
-    if self.delay_timer > 0 {
-      self.delay_timer -= 1;
-    }
-    if self.sound_timer > 0 {
-      self.sound_timer -= 1;
-    }
-
     // Update keypad states
     for i in 0..self.keypad.len() {
       self.keypad_prev[i] = self.keypad[i];
@@ -368,6 +360,15 @@ impl Chip8 {
 
   pub fn set_keypad_state(&mut self, key_index: u8, value: bool) {
     self.keypad[key_index as usize] = value;
+  }
+
+  pub fn decrement_timers(&mut self) {
+    if self.delay_timer > 0 {
+      self.delay_timer -= 1;
+    }
+    if self.sound_timer > 0 {
+      self.sound_timer -= 1;
+    }
   }
 
   pub fn get_sound_timer(&self) -> u8 {

@@ -49,7 +49,10 @@ fn main() {
                 elwt.exit();
             },
             Event::AboutToWait => {
-                chip8.run();
+                for _ in 0..10 {
+                    chip8.run();
+                }
+                chip8.decrement_timers();
                 let display = chip8.get_display();
                 let frame = pixels.frame_mut();
                 // The frame data is RGBA

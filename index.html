@@ -5,11 +5,26 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chip-8 Emulator</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.162.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.162.0/examples/jsm/"
+      }
+    }
+  </script>
+  <style>
+    html,
+    body {
+      margin: 0;
+    }
+  </style>
 </head>
 
 <body>
-  <canvas id="canvas" width="640" height="320"></canvas>
   <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import init, { Chip8 } from './pkg/chip8_web.js';
 
     await init();
@@ -33,14 +48,46 @@
     oscillator.start();
 
     /** @type {HTMLCanvasElement} */
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
+    const canvas = document.createElement("canvas");
+    canvas.width = 640;
+    canvas.height = 320;
+    const canvasContext = canvas.getContext("2d");
     const scaleFactor = 10;
 
     const newArray = new Uint8ClampedArray(64 * 32 * 4);
 
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x111111);
+    const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+    camera.position.z = 2;
+
+    const renderer = new THREE.WebGLRenderer();
+    renderer.setSize( window.innerWidth, window.innerHeight );
+    document.body.appendChild( renderer.domElement );
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight
+      camera.updateProjectionMatrix()
+      renderer.setSize(window.innerWidth, window.innerHeight)
+    });
+
+    const planeGeometry = new THREE.PlaneGeometry(2, 1);
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.MeshBasicMaterial({ map: texture });
+    const plane = new THREE.Mesh(planeGeometry, material);
+    scene.add(plane);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.listenToKeyEvents(document.body)
+
     function draw() {
-      chip8.run();
+      renderer.render(scene, camera);
+      texture.needsUpdate = true;
+
+      for (let i = 0; i < 4; i++) {
+        chip8.run();
+      }
+      chip8.decrement_timers();
       chip8.get_display().forEach((value, idx) => {
         newArray[idx * 4] = value * 255;
         newArray[idx * 4 + 1] = value * 255;
@@ -50,7 +97,7 @@
 
       // Adjusting the scale
       const scaledImageData = scaleImageData(newArray, 64, scaleFactor);
-      ctx.putImageData(scaledImageData, 0, 0);
+      canvasContext.putImageData(scaledImageData, 0, 0);
 
       // Ideally this would just be calling start/stop on the oscillator,
       // but it seems like there's a race condition with rAF that causes
@@ -68,7 +115,7 @@
 
     function scaleImageData(imageData, width, scaleFactor) {
       // Calculate the dimensions of the scaled image data
-      const scaledImageData = ctx.createImageData(width * scaleFactor, imageData.length / (width * 4) * scaleFactor);
+      const scaledImageData = canvasContext.createImageData(width * scaleFactor, imageData.length / (width * 4) * scaleFactor);
 
       // Loop through each pixel in the scaled image data
       for (let y = 0; y < scaledImageData.height; y++) {
