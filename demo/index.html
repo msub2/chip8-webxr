@@ -24,7 +24,6 @@
 <body>
   <script type="module">
     import * as THREE from 'three';
-    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { VRButton } from 'three/addons/webxr/VRButton.js';
     import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
     import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
@@ -60,6 +59,24 @@
     const canvasContext = canvas.getContext("2d");
     const scaleFactor = 10;
     const imageData = new Uint8ClampedArray(64 * 32 * 4);
+
+    // Hook up emulator input
+    const chip8Layout = [
+      '1', '2', '3', 'C',
+      '4', '5', '6', 'D',
+      '7', '8', '9', 'E',
+      'A', '0', 'B', 'F'
+    ];
+    document.addEventListener("keydown", (event) => {
+      if (chip8Layout.includes(event.key)) {
+        chip8.set_keypad_state(chip8Layout.indexOf(event.key), true);
+      }
+    });
+    document.addEventListener("keyup", (event) => {
+      if (chip8Layout.includes(event.key)) {
+        chip8.set_keypad_state(chip8Layout.indexOf(event.key), false);
+      }
+    });
 
     // Setup three.js scene
     let hand1, hand2;
