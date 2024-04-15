@@ -31,6 +31,7 @@ pub struct Chip8 {
   registers: [u8; 16],
   keypad: [bool; 16],
   keypad_prev: [bool; 16],
+  last_pressed_key: Option<usize>,
   displayed: bool,
   variant: Variant,
   hires_mode: bool,
@@ -53,6 +54,7 @@ impl Chip8 {
       registers: [0; 16],
       keypad: [false; 16],
       keypad_prev: [false; 16],
+      last_pressed_key: None,
       displayed: false,
       variant,
       // SCHIP
@@ -314,14 +316,14 @@ impl Chip8 {
       },
       (0xE000, _, 0x0090, 0x000E) => {
         // Skip next instruction if key stored in VX is pressed
-        let index = self.get_keypad_index_from_value(self.registers[x]);
+        let index = self.get_keypad_index_from_value(self.registers[x] & 0xF);
         if self.keypad[index] {
           self.pc = self.pc.wrapping_add(2);
         }
       },
       (0xE000, _, 0x00A0, 0x0001) => {
         // Skip next instruction if key stored in VX is not pressed
-        let index = self.get_keypad_index_from_value(self.registers[x]);
+        let index = self.get_keypad_index_from_value(self.registers[x] & 0xF);
         if !self.keypad[index] {
           self.pc = self.pc.wrapping_add(2);
         }
@@ -332,13 +334,20 @@ impl Chip8 {
       },
       (0xF000, _, 0x0000, 0x000A) => {
         // Wait for key press and store in VX
-        if !self.keypad.iter().any(|key| *key) {
+        if !self.keypad_prev.iter().any(|key| *key) {
           self.pc = self.pc.wrapping_sub(2);
         } else {
-          // Store the first key in the keypad that is pressed
-          let key_index = self.keypad.iter().position(|key| *key).unwrap();
+          // Store the first key in the keypad that is pressed and wait for it to be released
+          let key_index = if self.last_pressed_key.is_some() { self.last_pressed_key.unwrap() } else {
+            let index = self.keypad_prev.iter().position(|key| *key).unwrap();
+            self.last_pressed_key = Some(index);
+            index
+          };
+
           if !self.keypad[key_index] && self.keypad_prev[key_index] {
             self.registers[x] = self.get_keypad_value_from_index(key_index as u8);
+          } else {
+            self.pc = self.pc.wrapping_sub(2);
           }
         }
       },
