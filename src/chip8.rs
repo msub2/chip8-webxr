@@ -33,6 +33,8 @@ pub struct Chip8 {
   keypad_prev: [bool; 16],
   displayed: bool,
   variant: Variant,
+  hires_mode: bool,
+  flags: [u8; 8],
 }
 
 #[wasm_bindgen]
@@ -53,6 +55,10 @@ impl Chip8 {
       keypad_prev: [false; 16],
       displayed: false,
       variant,
+      // SCHIP
+      hires_mode: false,
+      flags: [0; 8],
+      // XOCHIP
     }
   }
 
@@ -138,6 +144,14 @@ impl Chip8 {
           }
         }
       },
+      (0x0000, 0x0000, 0x00F0, 0x000E) => {
+        // SCHIP: Enable hires mode
+        self.hires_mode = true;
+      },
+      (0x0000, 0x0000, 0x00F0, 0x000F) => {
+        // SCHIP: Disable hires mode
+        self.hires_mode = false;
+      }
       (0x1000, _, _, _) => {
         // Jump to address NNN
         self.pc = nnn;
@@ -215,10 +229,14 @@ impl Chip8 {
         self.registers[0xF] = if overflow { 0 } else { 1 };
       },
       (0x8000, _, _, 0x0006) => {
-        // Set register VX to VY >> 1
-        // Set register VF to the least significant bit prior to the shift
         let lsb = self.registers[x] & 0x01;
-        self.registers[x] = self.registers[y] >> 1;
+        if self.variant == Variant::CHIP8 {
+          // Set register VX to VY >> 1
+          // Set register VF to the least significant bit prior to the shift
+          self.registers[x] = self.registers[y] >> 1;
+        } else if self.variant == Variant::SCHIP1_0 {
+          self.registers[x] >>= 1;
+        }
         self.registers[0xF] = lsb;
       },
       (0x8000, _, _, 0x0007) => {
@@ -230,10 +248,15 @@ impl Chip8 {
         self.registers[0xF] = if overflow { 0 } else { 1 };
       },
       (0x8000, _, _, 0x000E) => {
-        // Set register VX to VY << 1
-        // Set register VF to the most significant bit prior to the shift
         let msb = (self.registers[x] & 0x80) >> 7;
-        self.registers[x] = self.registers[y] << 1;
+        if self.variant == Variant::CHIP8 {
+          // Set register VX to VY << 1
+          // Set register VF to the most significant bit prior to the shift
+          self.registers[x] = self.registers[y] << 1;
+        } else if self.variant == Variant::SCHIP1_0 {
+          self.registers[x] <<= 1;
+        }
+
         self.registers[0xF] = msb;
       },
       (0x9000, _, _, _) => {
@@ -247,8 +270,13 @@ impl Chip8 {
         self.i = nnn;
       },
       (0xB000, _, _, _) => {
-        // Jump to address NNN + V0
-        self.pc = nnn + self.registers[0] as u16;
+        if self.variant == Variant::CHIP8 {
+          // Jump to address NNN + V0
+          self.pc = nnn + self.registers[0] as u16;
+        } else if self.variant == Variant::SCHIP1_0 {
+          // Jump to address XNN + VX
+          self.pc = nnn + self.registers[x] as u16;
+        }
       },
       (0xC000, _, _, _) => {
         // Set VX to a random number with a mask of NN
@@ -266,7 +294,7 @@ impl Chip8 {
           if self.variant == Variant::CHIP8 && y_val + row == 32 {
             break;
           }
-          let sprite = self.memory[(self.i + row) as usize];
+          let sprite = self.memory[(self.i + row) as usize % self.memory.len()];
           for column in 0..8 {
             if self.variant == Variant::CHIP8 && x_val + column == 64 {
               break;
@@ -343,7 +371,9 @@ impl Chip8 {
         for i in 0..(x + 1) {
           self.memory[(self.i as usize + i) % self.memory.len()] = self.registers[i];
         }
-        self.i = self.i.wrapping_add(x as u16 + 1);
+        if self.variant == Variant::CHIP8 {
+          self.i = self.i.wrapping_add(x as u16 + 1);
+        }
       },
       (0xF000, _, 0x0060, 0x0005) => {
         // Fill registers V0 to VX inclusive with the values stored in memory starting at address I
@@ -351,7 +381,21 @@ impl Chip8 {
         for i in 0..(x + 1) {
           self.registers[i] = self.memory[(self.i as usize + i) % self.memory.len()];
         }
-        self.i = self.i.wrapping_add(x as u16 + 1);
+        if self.variant == Variant::CHIP8 {
+          self.i = self.i.wrapping_add(x as u16 + 1);
+        }
+      },
+      (0xF000, _, 0x0070, 0x0005) => {
+        // Store the values of registers V0 to VX inclusive in user flags
+        for i in 0..(x + 1) {
+          self.flags[i] = self.registers[i];
+        }
+      },
+      (0xF000, _, 0x0080, 0x0005) => {
+        // Fill registers V0 to VX inclusive with the values stored in user flags
+        for i in 0..(x + 1) {
+          self.registers[i] = self.flags[i];
+        }
       }
       _ => {
         println!("Unknown opcode: 0x{:04X}", op);
