@@ -29,7 +29,7 @@ fn main() {
     let mut input = WinitInputHelper::new();
     let mut chip8 = Chip8::new(Variant::CHIP8);
     chip8.load_font();
-    chip8.load_rom_from_file("./roms/janitor/oob_test_5.ch8");
+    chip8.load_rom_from_file("./roms/test/oob_test_7.ch8");
 
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
     let sink = Sink::try_new(&stream_handle).unwrap();
