@@ -96,10 +96,14 @@ impl Chip8 {
     self.displayed = false;
 
     // Fetch the next 16-bit instruction
+    if self.pc as usize >= self.memory.len() {
+      // Probably not accurate to real life but just set back to start of program
+      self.pc = 0x0200;
+    }
     let op1 = self.memory[self.pc as usize];
     let op2 = self.memory[(self.pc + 1) as usize];
     let op = ((op1 as u16) << 8) | (op2 as u16);
-    self.pc += 2;
+    self.pc = self.pc.wrapping_add(2);
 
     // Decode and execute the instruction
     let op_1 = op & 0xF000;
@@ -122,6 +126,7 @@ impl Chip8 {
         self.pc = match self.stack.pop() {
           Some(addr) => addr,
           None => {
+            // Probably not accurate to real life but just set back to start of program
             0x0200
           }
         }
@@ -321,15 +326,15 @@ impl Chip8 {
       },
       (0xF000, _, 0x0030, 0x0003) => {
         // Store BCD representation of VX in memory locations I, I+1, and I+2
-        self.memory[self.i as usize] = self.registers[x] / 100;
-        self.memory[self.i as usize + 1] = (self.registers[x] / 10) % 10;
-        self.memory[self.i as usize + 2] = (self.registers[x] % 100) % 10;
+        self.memory[self.i as usize % self.memory.len()] = self.registers[x] / 100;
+        self.memory[(self.i as usize + 1) % self.memory.len()] = (self.registers[x] / 10) % 10;
+        self.memory[(self.i as usize + 2) % self.memory.len()] = (self.registers[x] % 100) % 10;
       },
       (0xF000, _, 0x0050, 0x0005) => {
         // Store the values of registers V0 to VX inclusive in memory starting at address I
         // I is set to I + X + 1 after operation
         for i in 0..(x + 1) {
-          self.memory[self.i as usize + i] = self.registers[i];
+          self.memory[(self.i as usize + i) % self.memory.len()] = self.registers[i];
         }
         self.i = self.i.wrapping_add(x as u16 + 1);
       },
@@ -337,7 +342,7 @@ impl Chip8 {
         // Fill registers V0 to VX inclusive with the values stored in memory starting at address I
         // I is set to I + X + 1 after operation
         for i in 0..(x + 1) {
-          self.registers[i] = self.memory[self.i as usize + i];
+          self.registers[i] = self.memory[(self.i as usize + i) % self.memory.len()];
         }
         self.i = self.i.wrapping_add(x as u16 + 1);
       }
