@@ -2,6 +2,13 @@ use std::fs;
 use std::path::Path;
 use wasm_bindgen::prelude::*;
 
+const STANDARD_LAYOUT: [u8; 16] = [
+  0x1, 0x2, 0x3, 0xC,
+  0x4, 0x5, 0x6, 0xD,
+  0x7, 0x8, 0x9, 0xE,
+  0xA, 0x0, 0xB, 0xF
+];
+
 #[wasm_bindgen]
 #[derive(Copy, Clone, Debug, PartialEq)]
 /// Which particular CHIP-8 interpreter to emulate
@@ -281,14 +288,14 @@ impl Chip8 {
         // Skip next instruction if key stored in VX is pressed
         let index = self.get_keypad_index_from_value(self.registers[x]);
         if self.keypad[index] {
-          self.pc += 2;
+          self.pc = self.pc.wrapping_add(2);
         }
       },
       (0xE000, _, 0x00A0, 0x0001) => {
         // Skip next instruction if key stored in VX is not pressed
         let index = self.get_keypad_index_from_value(self.registers[x]);
         if !self.keypad[index] {
-          self.pc += 2;
+          self.pc = self.pc.wrapping_add(2);
         }
       },
       (0xF000, _, 0x0000, 0x0007) => {
@@ -298,7 +305,7 @@ impl Chip8 {
       (0xF000, _, 0x0000, 0x000A) => {
         // Wait for key press and store in VX
         if !self.keypad.iter().any(|key| *key) {
-          self.pc -= 2;
+          self.pc = self.pc.wrapping_sub(2);
         } else {
           // Store the first key in the keypad that is pressed
           let key_index = self.keypad.iter().position(|key| *key).unwrap();
@@ -321,7 +328,7 @@ impl Chip8 {
       },
       (0xF000, _, 0x0020, 0x0009) => {
         // Set I to the memory address of the sprite data corresponding to the hex digit stored in register VX
-        let digit = self.registers[x];
+        let digit = self.registers[x] & 0x0F;
         self.i = 0x050 + (digit * 5) as u16;
       },
       (0xF000, _, 0x0030, 0x0003) => {
@@ -381,48 +388,12 @@ impl Chip8 {
   fn get_keypad_value_from_index(&self, key_index: u8) -> u8 {
     // TODO: Account for keypad layout variations
     // Assuming standard for now
-    match key_index {
-      0 => 0x1,
-      1 => 0x2,
-      2 => 0x3,
-      3 => 0xC,
-      4 => 0x4,
-      5 => 0x5,
-      6 => 0x6,
-      7 => 0xD,
-      8 => 0x7,
-      9 => 0x8,
-      10 => 0x9,
-      11 => 0xE,
-      12 => 0xA,
-      13 => 0x0,
-      14 => 0xB,
-      15 => 0xF,
-      _ => 0x0 // Shouldn't reach here
-    }
+    STANDARD_LAYOUT.get(key_index as usize).unwrap_or(&0).clone()
   }
 
   fn get_keypad_index_from_value(&self, value: u8) -> usize {
     // TODO: Account for keypad layout variations
     // Assuming standard for now
-    match value {
-      0x1 => 0,
-      0x2 => 1,
-      0x3 => 2,
-      0xC => 3,
-      0x4 => 4,
-      0x5 => 5,
-      0x6 => 6,
-      0xD => 7,
-      0x7 => 8,
-      0x8 => 9,
-      0x9 => 10,
-      0xE => 11,
-      0xA => 12,
-      0x0 => 13,
-      0xB => 14,
-      0xF => 15,
-      _ => 0
-    }
+    STANDARD_LAYOUT.iter().position(|x| *x == value).unwrap_or(0)
   }
 }
