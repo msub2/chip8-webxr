@@ -11,7 +11,7 @@ use winit::{
     window::WindowBuilder,
 };
 use winit_input_helper::WinitInputHelper;
-use chip8::Chip8;
+use chip8::{Chip8, Variant};
 use square_wave::SquareWave;
 
 fn main() {
@@ -27,9 +27,9 @@ fn main() {
         Pixels::new(64, 32, surface_texture).unwrap()
     };
     let mut input = WinitInputHelper::new();
-    let mut chip8 = Chip8::new();
+    let mut chip8 = Chip8::new(Variant::CHIP8);
     chip8.load_font();
-    chip8.load_rom_from_file("./roms/timendus/5-quirks.ch8");
+    chip8.load_rom_from_file("./roms/janitor/break_00EE.ch8");
 
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
     let sink = Sink::try_new(&stream_handle).unwrap();

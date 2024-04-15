@@ -2,8 +2,15 @@ use std::fs;
 use std::path::Path;
 use wasm_bindgen::prelude::*;
 
-// TODO: Account for this during creation
-const MODE: &str = "chip8";
+#[wasm_bindgen]
+#[derive(Copy, Clone, Debug, PartialEq)]
+/// Which particular CHIP-8 interpreter to emulate
+pub enum Variant {
+  CHIP8,
+  SCHIP1_0,
+  SCHIP1_1,
+  XOCHIP
+}
 
 #[wasm_bindgen]
 pub struct Chip8 {
@@ -18,13 +25,14 @@ pub struct Chip8 {
   keypad: [bool; 16],
   keypad_prev: [bool; 16],
   displayed: bool,
+  variant: Variant,
 }
 
 #[wasm_bindgen]
 impl Chip8 {
   /// Create a new Chip8 instance
   #[wasm_bindgen(constructor)]
-  pub fn new() -> Chip8 {
+  pub fn new(variant: Variant) -> Chip8 {
     Self {
       memory: [0; 4096],
       display: [0; 64 * 32],
@@ -37,6 +45,7 @@ impl Chip8 {
       keypad: [false; 16],
       keypad_prev: [false; 16],
       displayed: false,
+      variant,
     }
   }
 
@@ -110,7 +119,12 @@ impl Chip8 {
       },
       (0x0000, 0x0000, 0x00E0, 0x000E) => {
         // Return from subroutine
-        self.pc = self.stack.pop().unwrap();
+        self.pc = match self.stack.pop() {
+          Some(addr) => addr,
+          None => {
+            0x0200
+          }
+        }
       },
       (0x1000, _, _, _) => {
         // Jump to address NNN
@@ -154,21 +168,21 @@ impl Chip8 {
       (0x8000, _, _, 0x0001) => {
         // Set register VX to VX | VY
         self.registers[x] = self.registers[x] | self.registers[y];
-        if MODE == "chip8" {
+        if self.variant == Variant::CHIP8 {
           self.registers[0xF] = 0;
         }
       },
       (0x8000, _, _, 0x0002) => {
         // Set register VX to VX & VY
         self.registers[x] = self.registers[x] & self.registers[y];
-        if MODE == "chip8" {
+        if self.variant == Variant::CHIP8 {
           self.registers[0xF] = 0;
         }
       },
       (0x8000, _, _, 0x0003) => {
         // Set register VX to VX ^ VY
         self.registers[x] = self.registers[x] ^ self.registers[y];
-        if MODE == "chip8" {
+        if self.variant == Variant::CHIP8 {
           self.registers[0xF] = 0;
         }
       },
@@ -237,12 +251,12 @@ impl Chip8 {
         self.registers[0xF] = 0;
 
         for row in 0..height {
-          if MODE == "chip8" && y_val + row == 32 {
+          if self.variant == Variant::CHIP8 && y_val + row == 32 {
             break;
           }
           let sprite = self.memory[(self.i + row) as usize];
           for column in 0..8 {
-            if MODE == "chip8" && x_val + column == 64 {
+            if self.variant == Variant::CHIP8 && x_val + column == 64 {
               break;
             }
             // 0x80 is 0b10000000, this iterates through each bit

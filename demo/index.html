@@ -27,11 +27,12 @@
     import { VRButton } from 'three/addons/webxr/VRButton.js';
     import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
     import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
-    import init, { Chip8 } from '../pkg/chip8_web.js';
+    import init, { Chip8, Variant } from '../pkg/chip8_web.js';
 
     // Initialize Chip-8 emulator
     await init();
-    const chip8 = new Chip8();
+    let variant = Variant.CHIP8;
+    const chip8 = new Chip8(variant);
 
     // Load ROM
     const rom = await fetch('../roms/timendus/5-quirks.ch8');
@@ -192,6 +193,10 @@
 
       for (let i = 0; i < 10; i++) {
         chip8.run();
+        if (variant == Variant.CHIP8 && chip8.displayed_this_frame()) {
+          // This simulates waiting for the vertical blank interrupt after drawing a sprite.
+          break;
+        }
       }
       chip8.decrement_timers();
       chip8.get_display().forEach((value, idx) => {
