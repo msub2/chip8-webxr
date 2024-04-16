@@ -35,7 +35,7 @@
     const chip8 = new Chip8(variant);
 
     // Load ROM
-    const rom = await fetch('../roms/timendus/5-quirks.ch8');
+    const rom = await fetch('../roms/test/oob_test_7.ch8');
     const romBuffer = await rom.arrayBuffer();
     const romBytes = new Uint8Array(romBuffer);
     chip8.load_rom_from_bytes(romBytes);
@@ -63,10 +63,10 @@
 
     // Hook up emulator input
     const chip8Layout = [
-      '1', '2', '3', 'C',
-      '4', '5', '6', 'D',
-      '7', '8', '9', 'E',
-      'A', '0', 'B', 'F'
+      '1', '2', '3', '4',
+      'q', 'w', 'e', 'r',
+      'a', 's', 'd', 'f',
+      'z', 'x', 'c', 'v'
     ];
     document.addEventListener("keydown", (event) => {
       if (chip8Layout.includes(event.key)) {
