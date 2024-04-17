@@ -22,7 +22,7 @@ pub enum Variant {
 #[wasm_bindgen]
 pub struct Chip8 {
   memory: [u8; 4096],
-  display: [u8; 64 * 32],
+  display: [u8; 128 * 64],
   pc: u16,
   i: u16,
   stack: Vec<u16>,
@@ -45,7 +45,7 @@ impl Chip8 {
   pub fn new(variant: Variant) -> Chip8 {
     Self {
       memory: [0; 4096],
-      display: [0; 64 * 32],
+      display: [0; 128 * 64],
       pc: 0x200,
       i: 0,
       stack: Vec::new(),
@@ -66,7 +66,7 @@ impl Chip8 {
 
   /// Load the default font into memory at 0x0050
   pub fn load_font(&mut self) {
-    let fontset: [u8; 80] = [
+    let lores_fontset: [u8; 5 * 16] = [
       0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
       0x20, 0x60, 0x20, 0x20, 0x70, // 1
       0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
@@ -84,8 +84,32 @@ impl Chip8 {
       0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
       0xF0, 0x80, 0xF0, 0x80, 0x80, // F
     ];
-    let memory_slice = &mut self.memory[0x050..0x050 + fontset.len()];
-    memory_slice.copy_from_slice(fontset.as_slice());
+    let hires_fontset: [u8; 10 * 16] = [
+      0xff, 0xff, 0xc3, 0xc3, 0xc3, 0xc3, 0xc3, 0xc3, 0xff, 0xff, // 0
+      0x18, 0x78, 0x78, 0x18, 0x18, 0x18, 0x18, 0x18, 0xff, 0xff, // 1
+      0xff, 0xff, 0x03, 0x03, 0xff, 0xff, 0xc0, 0xc0, 0xff, 0xff, // 2
+      0xff, 0xff, 0x03, 0x03, 0xff, 0xff, 0x03, 0x03, 0xff, 0xff, // 3
+      0xc3, 0xc3, 0xc3, 0xc3, 0xff, 0xff, 0x03, 0x03, 0x03, 0x03, // 4
+      0xff, 0xff, 0xc0, 0xc0, 0xff, 0xff, 0x03, 0x03, 0xff, 0xff, // 5
+      0xff, 0xff, 0xc0, 0xc0, 0xff, 0xff, 0xc3, 0xc3, 0xff, 0xff, // 6
+      0xff, 0xff, 0x03, 0x03, 0x06, 0x0c, 0x18, 0x18, 0x18, 0x18, // 7
+      0xff, 0xff, 0xc3, 0xc3, 0xff, 0xff, 0xc3, 0xc3, 0xff, 0xff, // 8
+      0xff, 0xff, 0xc3, 0xc3, 0xff, 0xff, 0x03, 0x03, 0xff, 0xff, // 9
+      0x7e, 0xff, 0xc3, 0xc3, 0xc3, 0xff, 0xff, 0xc3, 0xc3, 0xc3, // A
+      0xfc, 0xfc, 0xc3, 0xc3, 0xfc, 0xfc, 0xc3, 0xc3, 0xfc, 0xfc, // B
+      0x3c, 0xff, 0xc3, 0xc0, 0xc0, 0xc0, 0xc0, 0xc3, 0xff, 0x3c, // C
+      0xfc, 0xfe, 0xc3, 0xc3, 0xc3, 0xc3, 0xc3, 0xc3, 0xfe, 0xfc, // D
+      0xff, 0xff, 0xc0, 0xc0, 0xff, 0xff, 0xc0, 0xc0, 0xff, 0xff, // E
+      0xff, 0xff, 0xc0, 0xc0, 0xff, 0xff, 0xc0, 0xc0, 0xc0, 0xc0  // F
+    ];
+
+    let memory_slice = &mut self.memory[0x00..0xf0];
+    for i in 0..lores_fontset.len() {
+      memory_slice[i] = lores_fontset[i];
+    }
+    for i in 0..hires_fontset.len() {
+      memory_slice[i + 0x50] = hires_fontset[i];
+    }
   }
 
   /// Load a ROM into memory at 0x0200 from a file
@@ -147,12 +171,12 @@ impl Chip8 {
         }
       },
       (0x0000, 0x0000, 0x00F0, 0x000E) => {
-        // SCHIP: Enable hires mode
-        self.hires_mode = true;
+        // SCHIP: Use lores mode
+        self.hires_mode = false;
       },
       (0x0000, 0x0000, 0x00F0, 0x000F) => {
-        // SCHIP: Disable hires mode
-        self.hires_mode = false;
+        // SCHIP: Use hires mode
+        self.hires_mode = true;
       }
       (0x1000, _, _, _) => {
         // Jump to address NNN
@@ -286,24 +310,43 @@ impl Chip8 {
       },
       (0xD000, _, _, _) => {
         // Draw sprite
+        // The x coordinate to begin drawing at
         let x_val = self.registers[x] as u16;
+        // The y coordinate to begin drawing at
         let y_val = self.registers[y] as u16;
-        let height = n as u16;
+        // The width of the sprite (16 if SCHIP and N = 0, otherwise 8)
+        let width = if n == 0 && self.variant == Variant::SCHIP1_0 { 16_u16 } else { 8_u16 };
+        // The height of the sprite (16 if SCHIP and N = 0, otherwise N)
+        let height = if n == 0 && self.variant == Variant::SCHIP1_0 { 16_u16 } else { n as u16 };
+        // The maximum width od the display
+        let max_width = if self.hires_mode { 128_u16 } else { 64_u16 };
+        // The maximum height of the display
+        let max_height = if self.hires_mode { 64_u16 } else { 32_u16 };
+        // How many bytes each row of the sprite occupies
+        let bytes_per_row = width / 8;
 
         self.registers[0xF] = 0;
 
+        // Start iterating through the rows of the sprite
         for row in 0..height {
-          if self.variant == Variant::CHIP8 && y_val + row == 32 {
+          if matches!(self.variant, Variant::CHIP8 | Variant::SCHIP1_0) && y_val + row == max_height {
             break;
           }
-          let sprite = self.memory[(self.i + row) as usize % self.memory.len()];
-          for column in 0..8 {
-            if self.variant == Variant::CHIP8 && x_val + column == 64 {
+          // Start iterating through the bytes in the row
+          for column in 0..width {
+            if matches!(self.variant, Variant::CHIP8 | Variant::SCHIP1_0) && x_val + column == max_width {
               break;
             }
+            let scale_factor = if self.hires_mode { 2 } else { 1 };
+            // An offset to the next byte to apply in case we are drawing a 16x16 sprite
+            let offset = if column > 7 { row * scale_factor + 1 } else { row * scale_factor };
+            // The location of the sprite in memory.
+            let sprite = self.memory[(self.i + offset) as usize % self.memory.len()];
+            let pixel_x = (x_val + column) % max_width;
+            let pixel_y = (y_val + row) % max_height;
             // 0x80 is 0b10000000, this iterates through each bit
-            if (sprite & (0x80 >> column)) != 0 {
-              let pixel = (((x_val + column) % 64) + (((y_val + row) % 32) * 64)) as usize;
+            if (sprite & (0x80 >> (column % 8))) != 0 {
+              let pixel = (pixel_x + pixel_y * 128) as usize;
               if self.display[pixel] == 1 {
                 self.registers[0xF] = 1;
               }
@@ -366,8 +409,13 @@ impl Chip8 {
       (0xF000, _, 0x0020, 0x0009) => {
         // Set I to the memory address of the sprite data corresponding to the hex digit stored in register VX
         let digit = self.registers[x] & 0x0F;
-        self.i = 0x050 + (digit * 5) as u16;
+        self.i = 0x000 + (digit * 5) as u16;
       },
+      (0xF000, _, 0x0030, 0x0000) => {
+        // Set I to the memory address of the sprite data corresponding to the big hex digit stored in register VX
+        let digit = self.registers[x] & 0x0F;
+        self.i = 0x050 + (digit * 5) as u16;
+      }
       (0xF000, _, 0x0030, 0x0003) => {
         // Store BCD representation of VX in memory locations I, I+1, and I+2
         self.memory[self.i as usize % self.memory.len()] = self.registers[x] / 100;

@@ -24,12 +24,12 @@ fn main() {
     let mut pixels = {
         let window_size = window.inner_size();
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
-        Pixels::new(64, 32, surface_texture).unwrap()
+        Pixels::new(128, 64, surface_texture).unwrap()
     };
     let mut input = WinitInputHelper::new();
-    let mut chip8 = Chip8::new(Variant::CHIP8);
+    let mut chip8 = Chip8::new(Variant::SCHIP1_0);
     chip8.load_font();
-    chip8.load_rom_from_file("./roms/test/oob_test_7.ch8");
+    chip8.load_rom_from_file("./roms/test/5-quirks.ch8");
 
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
     let sink = Sink::try_new(&stream_handle).unwrap();
