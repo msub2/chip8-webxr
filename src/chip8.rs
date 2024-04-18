@@ -156,6 +156,13 @@ impl Chip8 {
     let n = (op & 0x000F) as u8;
 
     match (op_1, op_2, op_3, op_4) {
+      (0x0000, 0x0000, 0x00C0, _) => {
+        // SCHIP: Scroll the display down by N pixels
+        let max_cols = self.max_cols();
+
+        self.display.rotate_right(n as usize * max_cols as usize);
+        self.display[..n as usize * max_cols as usize].fill(0);
+      },
       (0x0000, 0x0000, 0x00E0, 0x0000) => {
         // Clear the display
         self.display.fill(0);
@@ -167,6 +174,37 @@ impl Chip8 {
           None => {
             // Probably not accurate to real life but just set back to start of program
             0x0200
+          }
+        }
+      },
+      (0x0000, 0x0000, 0x00F0, 0x000B) => {
+        // SCHIP: Scroll the display right by 4 pixels
+        let max_rows = self.max_rows();
+        let max_cols = self.max_cols();
+
+        for row in 0..max_rows {
+          for col in (0..max_cols).rev() {
+            if col > 3 {
+              self.display[(row * max_cols) + col] = self.display[(row * max_cols) + col - 4];
+            } else {
+              self.display[(row * max_cols) + col] = 0;
+            }
+          }
+        }
+      },
+      (0x0000, 0x0000, 0x00F0, 0x000C) => {
+        // SCHIP: Scroll the display left by 4 pixels
+        let max_rows = self.max_rows();
+        let max_cols = self.max_cols();
+
+        // Similar logic as above step, but for left instead of right
+        for row in 0..max_rows {
+          for col in 0..max_cols {
+            if col < max_cols - 4 {
+              self.display[(row * max_cols) + col] = self.display[(row * max_cols) + col + 4];
+            } else {
+              self.display[(row * max_cols) + col] = 0;
+            }
           }
         }
       },
@@ -494,5 +532,13 @@ impl Chip8 {
     // TODO: Account for keypad layout variations
     // Assuming standard for now
     STANDARD_LAYOUT.iter().position(|x| *x == value).unwrap_or(0)
+  }
+
+  fn max_rows(&self) -> usize {
+    if self.hires_mode { 64 } else { 32 }
+  }
+
+  fn max_cols(&self) -> usize {
+    if self.hires_mode { 128 } else { 64 }
   }
 }
