@@ -14,8 +14,8 @@ const STANDARD_LAYOUT: [u8; 16] = [
 /// Which particular CHIP-8 interpreter to emulate
 pub enum Variant {
   CHIP8,
-  SCHIP1_0,
-  SCHIP1_1,
+  SCHIP_LEGACY,
+  SCHIP_MODERN,
   XOCHIP
 }
 
@@ -160,8 +160,10 @@ impl Chip8 {
         // SCHIP: Scroll the display down by N pixels
         let max_cols = self.max_cols();
 
-        self.display.rotate_right(n as usize * max_cols as usize);
-        self.display[..n as usize * max_cols as usize].fill(0);
+        let amount: usize = if !self.hires_mode && self.variant == Variant::SCHIP_LEGACY { n as usize / 2 } else { n as usize };
+
+        self.display.rotate_right(amount * max_cols as usize);
+        self.display[..amount * max_cols as usize].fill(0);
       },
       (0x0000, 0x0000, 0x00E0, 0x0000) => {
         // Clear the display
@@ -182,10 +184,12 @@ impl Chip8 {
         let max_rows = self.max_rows();
         let max_cols = self.max_cols();
 
+        let amount = if !self.hires_mode && self.variant == Variant::SCHIP_LEGACY { 2 } else { 4 };
+
         for row in 0..max_rows {
           for col in (0..max_cols).rev() {
             if col > 3 {
-              self.display[(row * max_cols) + col] = self.display[(row * max_cols) + col - 4];
+              self.display[(row * max_cols) + col] = self.display[(row * max_cols) + col - amount];
             } else {
               self.display[(row * max_cols) + col] = 0;
             }
@@ -197,11 +201,13 @@ impl Chip8 {
         let max_rows = self.max_rows();
         let max_cols = self.max_cols();
 
+        let amount = if !self.hires_mode && self.variant == Variant::SCHIP_LEGACY { 2 } else { 4 };
+
         // Similar logic as above step, but for left instead of right
         for row in 0..max_rows {
           for col in 0..max_cols {
             if col < max_cols - 4 {
-              self.display[(row * max_cols) + col] = self.display[(row * max_cols) + col + 4];
+              self.display[(row * max_cols) + col] = self.display[(row * max_cols) + col + amount];
             } else {
               self.display[(row * max_cols) + col] = 0;
             }
@@ -298,7 +304,7 @@ impl Chip8 {
           // Set register VX to VY >> 1
           // Set register VF to the least significant bit prior to the shift
           self.registers[x] = self.registers[y] >> 1;
-        } else if self.variant == Variant::SCHIP1_0 {
+        } else if self.variant == Variant::SCHIP_LEGACY {
           self.registers[x] >>= 1;
         }
         self.registers[0xF] = lsb;
@@ -317,7 +323,7 @@ impl Chip8 {
           // Set register VX to VY << 1
           // Set register VF to the most significant bit prior to the shift
           self.registers[x] = self.registers[y] << 1;
-        } else if self.variant == Variant::SCHIP1_0 {
+        } else if self.variant == Variant::SCHIP_LEGACY {
           self.registers[x] <<= 1;
         }
 
@@ -337,7 +343,7 @@ impl Chip8 {
         if self.variant == Variant::CHIP8 {
           // Jump to address NNN + V0
           self.pc = nnn + self.registers[0] as u16;
-        } else if self.variant == Variant::SCHIP1_0 {
+        } else if self.variant == Variant::SCHIP_LEGACY {
           // Jump to address XNN + VX
           self.pc = nnn + self.registers[x] as u16;
         }
@@ -353,9 +359,9 @@ impl Chip8 {
         // The y coordinate to begin drawing at
         let y_val = self.registers[y] as u16;
         // The width of the sprite (16 if SCHIP and N = 0, otherwise 8)
-        let width = if n == 0 && self.variant == Variant::SCHIP1_0 { 16_u16 } else { 8_u16 };
+        let width = if n == 0 && self.variant != Variant::CHIP8 { 16_u16 } else { 8_u16 };
         // The height of the sprite (16 if SCHIP and N = 0, otherwise N)
-        let height = if n == 0 && self.variant == Variant::SCHIP1_0 { 16_u16 } else { n as u16 };
+        let height = if n == 0 && self.variant != Variant::CHIP8 { 16_u16 } else { n as u16 };
         // The maximum width od the display
         let max_width = if self.hires_mode { 128_u16 } else { 64_u16 };
         // The maximum height of the display
@@ -365,12 +371,12 @@ impl Chip8 {
 
         // Start iterating through the rows of the sprite
         for row in 0..height {
-          if matches!(self.variant, Variant::CHIP8 | Variant::SCHIP1_0) && y_val + row == max_height {
+          if self.variant != Variant::XOCHIP && y_val + row == max_height {
             break;
           }
           // Start iterating through the bytes in the row
           for column in 0..width {
-            if matches!(self.variant, Variant::CHIP8 | Variant::SCHIP1_0) && x_val + column == max_width {
+            if self.variant != Variant::XOCHIP && x_val + column == max_width {
               break;
             }
             let scale_factor = if self.hires_mode && n == 0 { 2 } else { 1 };
