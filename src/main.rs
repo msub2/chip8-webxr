@@ -24,10 +24,11 @@ fn main() {
     let mut pixels = {
         let window_size = window.inner_size();
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
-        Pixels::new(128, 64, surface_texture).unwrap()
+        Pixels::new(64, 32, surface_texture).unwrap()
     };
     let mut input = WinitInputHelper::new();
-    let mut chip8 = Chip8::new(Variant::SCHIP1_0);
+    let variant = Variant::SCHIP1_0;
+    let mut chip8 = Chip8::new(variant);
     chip8.load_font();
     chip8.load_rom_from_file("./roms/test/5-quirks.ch8");
 
@@ -51,15 +52,21 @@ fn main() {
             Event::AboutToWait => {
                 for _ in 0..10 {
                     chip8.run();
-                    if chip8.displayed_this_frame() {
+                    if variant != Variant::SCHIP1_1 && chip8.displayed_this_frame() {
                         break;
                     }
                 }
                 chip8.decrement_timers();
+                if chip8.hires_mode() && pixels.frame().len() == 64 * 32 * 4 {
+                    let _ = pixels.resize_buffer(128, 64);
+                } else if !chip8.hires_mode() && pixels.frame().len() == 128 * 64 * 4 {
+                    let _ = pixels.resize_buffer(64, 32);
+                }
                 let display = chip8.get_display();
+                let display_len = if chip8.hires_mode() { 128 * 64 } else { 64 * 32 };
                 let frame = pixels.frame_mut();
                 // The frame data is RGBA
-                for i in 0..display.len() {
+                for i in 0..display_len {
                     frame[i * 4] = display[i] * 255;
                     frame[i * 4 + 1] = display[i] * 255;
                     frame[i * 4 + 2] = display[i] * 255;

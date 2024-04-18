@@ -382,7 +382,7 @@ impl Chip8 {
             let pixel_y = (y_val + row) % max_height;
             // 0x80 is 0b10000000, this iterates through each bit
             if (sprite & (0x80 >> (column % 8))) != 0 {
-              let pixel = (pixel_x + pixel_y * 128) as usize;
+              let pixel = (pixel_x + pixel_y * max_width) as usize;
               if self.display[pixel] == 1 {
                 self.registers[0xF] = 1;
               }
@@ -520,6 +520,10 @@ impl Chip8 {
 
   pub fn displayed_this_frame(&self) -> bool {
     self.displayed
+  }
+
+  pub fn hires_mode(&self) -> bool {
+    self.hires_mode
   }
 
   fn get_keypad_value_from_index(&self, key_index: u8) -> u8 {

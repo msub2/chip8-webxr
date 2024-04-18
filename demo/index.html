@@ -31,11 +31,11 @@
 
     // Initialize Chip-8 emulator
     await init();
-    let variant = Variant.CHIP8;
+    let variant = Variant.SCHIP1_0;
     const chip8 = new Chip8(variant);
 
     // Load ROM
-    const rom = await fetch('../roms/test/oob_test_7.ch8');
+    const rom = await fetch('../roms/test/5-quirks.ch8');
     const romBuffer = await rom.arrayBuffer();
     const romBytes = new Uint8Array(romBuffer);
     chip8.load_rom_from_bytes(romBytes);
@@ -58,8 +58,7 @@
     canvas.width = 640;
     canvas.height = 320;
     const canvasContext = canvas.getContext("2d");
-    const scaleFactor = 10;
-    const imageData = new Uint8ClampedArray(64 * 32 * 4);
+    const imageData = new Uint8ClampedArray(128 * 64 * 4);
 
     // Hook up emulator input
     const chip8Layout = [
@@ -207,7 +206,8 @@
       });
 
       // Adjusting the scale
-      const scaledImageData = scaleImageData(imageData, 64, scaleFactor);
+      const scaleFactor = chip8.hires_mode() ? 5 : 10;
+      const scaledImageData = scaleImageData(imageData, 128, scaleFactor);
       canvasContext.putImageData(scaledImageData, 0, 0);
 
       // Ideally this would just be calling start/stop on the oscillator,
