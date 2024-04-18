@@ -322,8 +322,6 @@ impl Chip8 {
         let max_width = if self.hires_mode { 128_u16 } else { 64_u16 };
         // The maximum height of the display
         let max_height = if self.hires_mode { 64_u16 } else { 32_u16 };
-        // How many bytes each row of the sprite occupies
-        let bytes_per_row = width / 8;
 
         self.registers[0xF] = 0;
 
@@ -337,7 +335,7 @@ impl Chip8 {
             if matches!(self.variant, Variant::CHIP8 | Variant::SCHIP1_0) && x_val + column == max_width {
               break;
             }
-            let scale_factor = if self.hires_mode { 2 } else { 1 };
+            let scale_factor = if self.hires_mode && n == 0 { 2 } else { 1 };
             // An offset to the next byte to apply in case we are drawing a 16x16 sprite
             let offset = if column > 7 { row * scale_factor + 1 } else { row * scale_factor };
             // The location of the sprite in memory.
