@@ -11,6 +11,7 @@ const STANDARD_LAYOUT: [u8; 16] = [
 
 #[wasm_bindgen]
 #[derive(Copy, Clone, Debug, PartialEq)]
+#[allow(non_camel_case_types)]
 /// Which particular CHIP-8 interpreter to emulate
 pub enum Variant {
   CHIP8,
