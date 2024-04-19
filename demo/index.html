@@ -9,7 +9,8 @@
     {
       "imports": {
         "three": "https://unpkg.com/three@0.163.0/build/three.module.js",
-        "three/addons/": "https://unpkg.com/three@0.163.0/examples/jsm/"
+        "three/addons/": "https://unpkg.com/three@0.163.0/examples/jsm/",
+        "three-mesh-ui": "https://unpkg.com/three-mesh-ui@6.5.4/build/three-mesh-ui.module.js"
       }
     }
   </script>
@@ -24,7 +25,9 @@
 <body>
   <script type="module">
     import * as THREE from 'three';
+    import * as ThreeMeshUI from "three-mesh-ui";
     import { VRButton } from 'three/addons/webxr/VRButton.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
     import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
     import init, { Chip8, Variant } from './chip8_web.js';
@@ -179,6 +182,10 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target = new THREE.Vector3(0, 1.6, -2);
+    controls.update();
+
     const planeGeometry = new THREE.PlaneGeometry(2, 1);
     const texture = new THREE.CanvasTexture(canvas);
     const material = new THREE.MeshBasicMaterial({ map: texture });
@@ -186,9 +193,27 @@
     plane.position.set(0, 1.6, -2);
     scene.add(plane);
 
+    // three mesh ui
+    const container = new ThreeMeshUI.Block({
+      width: 1.2,
+      height: 0.7,
+      padding: 0.2,
+      fontFamily: './assets/Roboto-msdf.json',
+      fontTexture: './assets/Roboto-msdf.png',
+    });
+
+    const text = new ThreeMeshUI.Text({
+      content: "Some text to be displayed"
+    });
+
+    container.add(text);
+    container.position.set(0, 1, -1);
+    scene.add(container);
+
     function draw() {
       renderer.render(scene, camera);
       texture.needsUpdate = true;
+      ThreeMeshUI.update();
 
       for (let i = 0; i < 10; i++) {
         chip8.run();
