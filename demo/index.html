@@ -31,7 +31,7 @@
 
     // Initialize Chip-8 emulator
     await init();
-    let variant = Variant.SCHIP1_0;
+    let variant = Variant.SCHIP_MODERN;
     const chip8 = new Chip8(variant);
 
     // Load ROM
@@ -183,7 +183,7 @@
     const texture = new THREE.CanvasTexture(canvas);
     const material = new THREE.MeshBasicMaterial({ map: texture });
     const plane = new THREE.Mesh(planeGeometry, material);
-    plane.position.set(0, 1, -2);
+    plane.position.set(0, 1.6, -2);
     scene.add(plane);
 
     function draw() {
@@ -192,7 +192,7 @@
 
       for (let i = 0; i < 10; i++) {
         chip8.run();
-        if (variant == Variant.CHIP8 && chip8.displayed_this_frame()) {
+        if ((variant == Variant.CHIP8 || variant == Variant.SCHIP_LEGACY) && chip8.displayed_this_frame()) {
           // This simulates waiting for the vertical blank interrupt after drawing a sprite.
           break;
         }
@@ -207,7 +207,8 @@
 
       // Adjusting the scale
       const scaleFactor = chip8.hires_mode() ? 5 : 10;
-      const scaledImageData = scaleImageData(imageData, 128, scaleFactor);
+      const width = chip8.hires_mode() ? 128 : 64;
+      const scaledImageData = scaleImageData(imageData, width, scaleFactor);
       canvasContext.putImageData(scaledImageData, 0, 0);
 
       // Ideally this would just be calling start/stop on the oscillator,
