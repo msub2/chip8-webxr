@@ -126,9 +126,53 @@ impl Chip8 {
     memory_slice.copy_from_slice(bytes.as_slice());
   }
 
+  pub fn get_memory(&self) -> Vec<u8> {
+    Vec::from(&self.memory)
+  }
+
   /// Get screen pixel data as a sequence of Uint8s
   pub fn get_display(&self) -> Vec<u8> {
     Vec::from(&self.display)
+  }
+
+  pub fn get_pc(&self) -> u16 {
+    self.pc
+  }
+
+  pub fn get_delay_timer(&self) -> u8 {
+    self.delay_timer
+  }
+
+  pub fn get_sound_timer(&self) -> u8 {
+    self.sound_timer
+  }
+
+  pub fn get_stack(&self) -> Vec<u16> {
+    Vec::from(self.stack.clone())
+  }
+
+  pub fn get_keypad(&self) -> Vec<u8> {
+    self.keypad.iter().map(|x| if *x { 1 } else { 0 }).collect()
+  }
+
+  pub fn get_index(&self) -> u16 {
+    self.i
+  }
+
+  pub fn get_registers(&self) -> Vec<u8> {
+    Vec::from(&self.registers)
+  }
+
+  pub fn displayed_this_frame(&self) -> bool {
+    self.displayed
+  }
+
+  pub fn hires_mode(&self) -> bool {
+    self.hires_mode
+  }
+
+  pub fn get_current_opcode(&self) -> u16 {
+    ((self.memory[self.pc as usize] as u16) << 8) | (self.memory[(self.pc + 1) as usize] as u16)
   }
 
   /// Execute the next instruction at the program counter
@@ -363,7 +407,7 @@ impl Chip8 {
         let width = if n == 0 && self.variant != Variant::CHIP8 { 16_u16 } else { 8_u16 };
         // The height of the sprite (16 if SCHIP and N = 0, otherwise N)
         let height = if n == 0 && self.variant != Variant::CHIP8 { 16_u16 } else { n as u16 };
-        // The maximum width od the display
+        // The maximum width of the display
         let max_width = if self.hires_mode { 128_u16 } else { 64_u16 };
         // The maximum height of the display
         let max_height = if self.hires_mode { 64_u16 } else { 32_u16 };
@@ -519,18 +563,6 @@ impl Chip8 {
     if self.sound_timer > 0 {
       self.sound_timer -= 1;
     }
-  }
-
-  pub fn get_sound_timer(&self) -> u8 {
-    self.sound_timer
-  }
-
-  pub fn displayed_this_frame(&self) -> bool {
-    self.displayed
-  }
-
-  pub fn hires_mode(&self) -> bool {
-    self.hires_mode
   }
 
   fn get_keypad_value_from_index(&self, key_index: u8) -> u8 {
