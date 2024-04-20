@@ -21,14 +21,16 @@ fn main() {
         .with_title("Chip8 Emulator")
         .build(&event_loop)
         .unwrap();
+    let mut input = WinitInputHelper::new();
+    let variant = Variant::SCHIP_LEGACY;
+    let mut chip8 = Chip8::new(variant);
     let mut pixels = {
         let window_size = window.inner_size();
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
-        Pixels::new(64, 32, surface_texture).unwrap()
+        let initial_width = if variant == Variant::SCHIP_LEGACY { 128 } else { 64 };
+        let initial_height = if variant == Variant::SCHIP_LEGACY { 64 } else { 32 };
+        Pixels::new(initial_width, initial_height, surface_texture).unwrap()
     };
-    let mut input = WinitInputHelper::new();
-    let variant = Variant::SCHIP1_0;
-    let mut chip8 = Chip8::new(variant);
     chip8.load_font();
     chip8.load_rom_from_file("./roms/test/5-quirks.ch8");
 
@@ -52,7 +54,7 @@ fn main() {
             Event::AboutToWait => {
                 for _ in 0..10 {
                     chip8.run();
-                    if variant != Variant::SCHIP1_1 && chip8.displayed_this_frame() {
+                    if variant != Variant::SCHIP_MODERN && chip8.displayed_this_frame() {
                         break;
                     }
                 }
