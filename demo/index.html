@@ -106,9 +106,13 @@
 
     // controllers
     controller1 = renderer.xr.getController(0);
+    controller1.addEventListener('selectstart', () => { selectState = true; });
+    controller1.addEventListener('selectend', () => { selectState = false; });
     scene.add(controller1);
 
     controller2 = renderer.xr.getController(1);
+    controller2.addEventListener('selectstart', () => { selectState = true; });
+    controller2.addEventListener('selectend', () => { selectState = false; });
     scene.add(controller2);
 
     const controllerModelFactory = new XRControllerModelFactory();
@@ -194,25 +198,199 @@
     scene.add(plane);
 
     // three mesh ui
+    const objsToTest = [];
+    // compute mouse position in normalized device coordinates
+    // (-1 to +1) for both directions.
+    // Used to raycasting against the interactive elements
+
+    const raycaster = new THREE.Raycaster();
+
+    const mouse = new THREE.Vector2();
+    mouse.x = mouse.y = null;
+
+    let selectState = false;
+
+    window.addEventListener('pointermove', (event) => {
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    });
+
+    window.addEventListener('pointerdown', () => {
+      selectState = true;
+    });
+
+    window.addEventListener('pointerup', () => {
+      selectState = false;
+    });
+
+    window.addEventListener('touchstart', (event) => {
+      selectState = true;
+      mouse.x = (event.touches[0].clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.touches[0].clientY / window.innerHeight) * 2 + 1;
+    });
+
+    window.addEventListener('touchend', () => {
+      selectState = false;
+      mouse.x = null;
+      mouse.y = null;
+    });
+
+    function createKey(key, index) {
+      const hoveredState = {
+        state: 'hovered',
+        attributes: {
+          backgroundColor: new THREE.Color(0x999999),
+          backgroundOpacity: 1,
+          fontColor: new THREE.Color(0xffffff)
+        },
+      };
+      const idleState = {
+        state: 'idle',
+        attributes: {
+          backgroundColor: new THREE.Color(0x666666),
+          backgroundOpacity: 0.3,
+          fontColor: new THREE.Color(0xffffff)
+        },
+        onSet: () => {
+          chip8.set_keypad_state(index, false);
+        }
+      };
+      const selectedState = {
+        state: 'selected',
+        attributes: {
+          backgroundColor: new THREE.Color(0x777777),
+          fontColor: new THREE.Color(0x222222)
+        },
+        onSet: () => {
+          chip8.set_keypad_state(index, true);
+        }
+      };
+
+      const keyObj = new ThreeMeshUI.Block({
+        width: .2,
+        height: .2,
+        padding: 0.1,
+        justifyContent: 'center',
+      }).add(new ThreeMeshUI.Text({
+        content: key
+      }));
+      keyObj.setupState(selectedState);
+      keyObj.setupState(hoveredState);
+      keyObj.setupState(idleState);
+      objsToTest.push(keyObj);
+
+      return keyObj;
+    }
+
     const container = new ThreeMeshUI.Block({
-      width: 1.2,
-      height: 0.7,
-      padding: 0.2,
+      width: .8,
+      height: .8,
       fontFamily: './assets/Roboto-msdf.json',
       fontTexture: './assets/Roboto-msdf.png',
     });
 
-    const text = new ThreeMeshUI.Text({
-      content: "Some text to be displayed"
-    });
+    const rowAttributes = {
+      width: .8,
+      contentDirection: 'row',
+      justifyContent: 'center'
+    };
 
-    container.add(text);
+    const row1 = new ThreeMeshUI.Block(rowAttributes);
+    const key1 = createKey('1', 0);
+    const key2 = createKey('2', 1);
+    const key3 = createKey('3', 2);
+    const keyC = createKey('C', 3);
+    row1.add(key1);
+    row1.add(key2);
+    row1.add(key3);
+    row1.add(keyC);
+    container.add(row1);
+
+    const row2 = new ThreeMeshUI.Block(rowAttributes);
+    const key4 = createKey('4', 4);
+    const key5 = createKey('5', 5);
+    const key6 = createKey('6', 6);
+    const keyD = createKey('D', 7);
+    row2.add(key4);
+    row2.add(key5);
+    row2.add(key6);
+    row2.add(keyD);
+    container.add(row2);
+
+    const row3 = new ThreeMeshUI.Block(rowAttributes);
+    const key7 = createKey('7', 8);
+    const key8 = createKey('8', 9);
+    const key9 = createKey('9', 10);
+    const keyE = createKey('E', 11);
+    row3.add(key7);
+    row3.add(key8);
+    row3.add(key9);
+    row3.add(keyE);
+    container.add(row3);
+
+    const row4 = new ThreeMeshUI.Block(rowAttributes);
+    const keyA = createKey('A', 12);
+    const key0 = createKey('0', 13);
+    const keyB = createKey('B', 14);
+    const keyF = createKey('F', 15);
+    row4.add(keyA);
+    row4.add(key0);
+    row4.add(keyB);
+    row4.add(keyF);
+    container.add(row4);
+
     container.position.set(0, 1, -1);
     scene.add(container);
+
+    function updateButtons() {
+      // Find closest intersecting object
+      let intersect;
+      if (renderer.xr.isPresenting) {
+        raycaster.setFromXRController(controller1);
+        intersect = raycast();
+
+        if (!intersect) {
+          raycaster.setFromXRController(controller2);
+          intersect = raycast();
+        }
+      } else if (mouse.x !== null && mouse.y !== null) {
+        raycaster.setFromCamera(mouse, camera);
+        intersect = raycast();
+      }
+
+      // Update targeted button state (if any)
+      if (intersect && intersect.object.isUI) {
+        if (selectState) {
+          intersect.object.setState('selected');
+        } else {
+          intersect.object.setState('hovered');
+        }
+      }
+
+      // Update non-targeted buttons state
+      objsToTest.forEach((obj) => {
+        if ((!intersect || obj !== intersect.object) && obj.isUI) {
+          obj.setState('idle');
+        }
+      });
+    }
+
+    function raycast() {
+      return objsToTest.reduce((closestIntersection, obj) => {
+        const intersection = raycaster.intersectObject(obj, true);
+        if (!intersection[0]) return closestIntersection;
+        if (!closestIntersection || intersection[0].distance < closestIntersection.distance) {
+          intersection[0].object = obj;
+          return intersection[0];
+        }
+        return closestIntersection;
+      }, null);
+    }
 
     function draw() {
       renderer.render(scene, camera);
       texture.needsUpdate = true;
+      updateButtons();
       ThreeMeshUI.update();
 
       for (let i = 0; i < 10; i++) {
