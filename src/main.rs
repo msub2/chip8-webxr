@@ -18,7 +18,7 @@ fn main() {
     let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new()
         .with_inner_size(LogicalSize::new(640, 320))
-        .with_title("Chip8 Emulator")
+        .with_title("SILK-8")
         .build(&event_loop)
         .unwrap();
     let mut input = WinitInputHelper::new();

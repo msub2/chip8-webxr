@@ -33,10 +33,54 @@ export class Chip8 {
 */
   load_rom_from_bytes(bytes: Uint8Array): void;
 /**
+* @returns {Uint8Array}
+*/
+  get_memory(): Uint8Array;
+/**
 * Get screen pixel data as a sequence of Uint8s
 * @returns {Uint8Array}
 */
   get_display(): Uint8Array;
+/**
+* @returns {number}
+*/
+  get_pc(): number;
+/**
+* @returns {number}
+*/
+  get_delay_timer(): number;
+/**
+* @returns {number}
+*/
+  get_sound_timer(): number;
+/**
+* @returns {Uint16Array}
+*/
+  get_stack(): Uint16Array;
+/**
+* @returns {Uint8Array}
+*/
+  get_keypad(): Uint8Array;
+/**
+* @returns {number}
+*/
+  get_index(): number;
+/**
+* @returns {Uint8Array}
+*/
+  get_registers(): Uint8Array;
+/**
+* @returns {boolean}
+*/
+  displayed_this_frame(): boolean;
+/**
+* @returns {boolean}
+*/
+  hires_mode(): boolean;
+/**
+* @returns {number}
+*/
+  get_current_opcode(): number;
 /**
 * Execute the next instruction at the program counter
 */
@@ -49,18 +93,6 @@ export class Chip8 {
 /**
 */
   decrement_timers(): void;
-/**
-* @returns {number}
-*/
-  get_sound_timer(): number;
-/**
-* @returns {boolean}
-*/
-  displayed_this_frame(): boolean;
-/**
-* @returns {boolean}
-*/
-  hires_mode(): boolean;
 }
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -72,13 +104,21 @@ export interface InitOutput {
   readonly chip8_load_font: (a: number) => void;
   readonly chip8_load_rom_from_file: (a: number, b: number, c: number) => void;
   readonly chip8_load_rom_from_bytes: (a: number, b: number, c: number) => void;
+  readonly chip8_get_memory: (a: number, b: number) => void;
   readonly chip8_get_display: (a: number, b: number) => void;
+  readonly chip8_get_pc: (a: number) => number;
+  readonly chip8_get_delay_timer: (a: number) => number;
+  readonly chip8_get_sound_timer: (a: number) => number;
+  readonly chip8_get_stack: (a: number, b: number) => void;
+  readonly chip8_get_keypad: (a: number, b: number) => void;
+  readonly chip8_get_index: (a: number) => number;
+  readonly chip8_get_registers: (a: number, b: number) => void;
+  readonly chip8_displayed_this_frame: (a: number) => number;
+  readonly chip8_hires_mode: (a: number) => number;
+  readonly chip8_get_current_opcode: (a: number) => number;
   readonly chip8_run: (a: number) => void;
   readonly chip8_set_keypad_state: (a: number, b: number, c: number) => void;
   readonly chip8_decrement_timers: (a: number) => void;
-  readonly chip8_get_sound_timer: (a: number) => number;
-  readonly chip8_displayed_this_frame: (a: number) => number;
-  readonly chip8_hires_mode: (a: number) => number;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_add_to_stack_pointer: (a: number) => number;

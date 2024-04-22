@@ -124,6 +124,20 @@ function getArrayU8FromWasm0(ptr, len) {
     return getUint8Memory0().subarray(ptr / 1, ptr / 1 + len);
 }
 
+let cachedUint16Memory0 = null;
+
+function getUint16Memory0() {
+    if (cachedUint16Memory0 === null || cachedUint16Memory0.byteLength === 0) {
+        cachedUint16Memory0 = new Uint16Array(wasm.memory.buffer);
+    }
+    return cachedUint16Memory0;
+}
+
+function getArrayU16FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getUint16Memory0().subarray(ptr / 2, ptr / 2 + len);
+}
+
 function handleError(f, args) {
     try {
         return f.apply(this, args);
@@ -188,6 +202,22 @@ export class Chip8 {
         wasm.chip8_load_rom_from_bytes(this.__wbg_ptr, ptr0, len0);
     }
     /**
+    * @returns {Uint8Array}
+    */
+    get_memory() {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.chip8_get_memory(retptr, this.__wbg_ptr);
+            var r0 = getInt32Memory0()[retptr / 4 + 0];
+            var r1 = getInt32Memory0()[retptr / 4 + 1];
+            var v1 = getArrayU8FromWasm0(r0, r1).slice();
+            wasm.__wbindgen_free(r0, r1 * 1, 1);
+            return v1;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
     * Get screen pixel data as a sequence of Uint8s
     * @returns {Uint8Array}
     */
@@ -203,6 +233,103 @@ export class Chip8 {
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
         }
+    }
+    /**
+    * @returns {number}
+    */
+    get_pc() {
+        const ret = wasm.chip8_get_pc(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+    * @returns {number}
+    */
+    get_delay_timer() {
+        const ret = wasm.chip8_get_delay_timer(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+    * @returns {number}
+    */
+    get_sound_timer() {
+        const ret = wasm.chip8_get_sound_timer(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+    * @returns {Uint16Array}
+    */
+    get_stack() {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.chip8_get_stack(retptr, this.__wbg_ptr);
+            var r0 = getInt32Memory0()[retptr / 4 + 0];
+            var r1 = getInt32Memory0()[retptr / 4 + 1];
+            var v1 = getArrayU16FromWasm0(r0, r1).slice();
+            wasm.__wbindgen_free(r0, r1 * 2, 2);
+            return v1;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
+    * @returns {Uint8Array}
+    */
+    get_keypad() {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.chip8_get_keypad(retptr, this.__wbg_ptr);
+            var r0 = getInt32Memory0()[retptr / 4 + 0];
+            var r1 = getInt32Memory0()[retptr / 4 + 1];
+            var v1 = getArrayU8FromWasm0(r0, r1).slice();
+            wasm.__wbindgen_free(r0, r1 * 1, 1);
+            return v1;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
+    * @returns {number}
+    */
+    get_index() {
+        const ret = wasm.chip8_get_index(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+    * @returns {Uint8Array}
+    */
+    get_registers() {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.chip8_get_registers(retptr, this.__wbg_ptr);
+            var r0 = getInt32Memory0()[retptr / 4 + 0];
+            var r1 = getInt32Memory0()[retptr / 4 + 1];
+            var v1 = getArrayU8FromWasm0(r0, r1).slice();
+            wasm.__wbindgen_free(r0, r1 * 1, 1);
+            return v1;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
+    * @returns {boolean}
+    */
+    displayed_this_frame() {
+        const ret = wasm.chip8_displayed_this_frame(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+    * @returns {boolean}
+    */
+    hires_mode() {
+        const ret = wasm.chip8_hires_mode(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+    * @returns {number}
+    */
+    get_current_opcode() {
+        const ret = wasm.chip8_get_current_opcode(this.__wbg_ptr);
+        return ret;
     }
     /**
     * Execute the next instruction at the program counter
@@ -221,27 +348,6 @@ export class Chip8 {
     */
     decrement_timers() {
         wasm.chip8_decrement_timers(this.__wbg_ptr);
-    }
-    /**
-    * @returns {number}
-    */
-    get_sound_timer() {
-        const ret = wasm.chip8_get_sound_timer(this.__wbg_ptr);
-        return ret;
-    }
-    /**
-    * @returns {boolean}
-    */
-    displayed_this_frame() {
-        const ret = wasm.chip8_displayed_this_frame(this.__wbg_ptr);
-        return ret !== 0;
-    }
-    /**
-    * @returns {boolean}
-    */
-    hires_mode() {
-        const ret = wasm.chip8_hires_mode(this.__wbg_ptr);
-        return ret !== 0;
     }
 }
 
@@ -407,6 +513,7 @@ function __wbg_finalize_init(instance, module) {
     wasm = instance.exports;
     __wbg_init.__wbindgen_wasm_module = module;
     cachedInt32Memory0 = null;
+    cachedUint16Memory0 = null;
     cachedUint8Memory0 = null;
 
 
@@ -433,7 +540,7 @@ async function __wbg_init(input) {
     if (wasm !== undefined) return wasm;
 
     if (typeof input === 'undefined') {
-        input = new URL('chip8_web_bg.wasm', import.meta.url);
+        input = new URL('silk8_web_bg.wasm', import.meta.url);
     }
     const imports = __wbg_get_imports();
 
