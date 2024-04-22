@@ -22,7 +22,7 @@ pub enum Variant {
 
 #[wasm_bindgen]
 pub struct Chip8 {
-  memory: [u8; 4096],
+  memory: [u8; 65536],
   display: [u8; 128 * 64],
   pc: u16,
   i: u16,
@@ -35,8 +35,11 @@ pub struct Chip8 {
   last_pressed_key: Option<usize>,
   displayed: bool,
   variant: Variant,
+  // SCHIP
   hires_mode: bool,
   flags: [u8; 8],
+  // XOCHIP
+  audio_pattern_buffer: [u8; 16],
 }
 
 #[wasm_bindgen]
@@ -45,7 +48,7 @@ impl Chip8 {
   #[wasm_bindgen(constructor)]
   pub fn new(variant: Variant) -> Chip8 {
     Self {
-      memory: [0; 4096],
+      memory: [0; 65536],
       display: [0; 128 * 64],
       pc: 0x200,
       i: 0,
@@ -62,6 +65,7 @@ impl Chip8 {
       hires_mode: false,
       flags: [0; 8],
       // XOCHIP
+      audio_pattern_buffer: [0; 16],
     }
   }
 
@@ -287,19 +291,31 @@ impl Chip8 {
       (0x3000, _, _, _) => {
         // Skip next instruction if VX == NN
         if self.registers[x] == nn {
-          self.pc += 2;
+          self.skip();
         }
       },
       (0x4000, _, _, _) => {
         // Skip next instruction if VX != NN
         if self.registers[x] != nn {
-          self.pc += 2;
+          self.skip();
         }
       },
-      (0x5000, _, _, _) => {
+      (0x5000, _, _, 0x0000) => {
         // Skip next instruction if VX == VY
         if self.registers[x] == self.registers[y] {
-          self.pc += 2;
+          self.skip();
+        }
+      },
+      (0x5000, _, _, 0x0002) => {
+        // XOCHIP: save an inclusive range of registers to memory starting at i
+        for register in x..y + 1 {
+          self.memory[self.i as usize + register] = self.registers[register];
+        }
+      },
+      (0x5000, _, _, 0x0003) => {
+        // XOCHIP: load an inclusive range of registers from memory starting at i
+        for register in x..y + 1 {
+          self.registers[register] = self.memory[self.i as usize + register];
         }
       },
       (0x6000, _, _, _) => {
@@ -385,7 +401,7 @@ impl Chip8 {
       (0x9000, _, _, _) => {
         // Skip next instruction if VX != VY
         if self.registers[x] != self.registers[y] {
-          self.pc += 2;
+          self.skip();
         }
       },
       (0xA000, _, _, _) => {
@@ -456,14 +472,28 @@ impl Chip8 {
         // Skip next instruction if key stored in VX is pressed
         let index = self.get_keypad_index_from_value(self.registers[x] & 0xF);
         if self.keypad[index] {
-          self.pc = self.pc.wrapping_add(2);
+          self.skip();
         }
       },
       (0xE000, _, 0x00A0, 0x0001) => {
         // Skip next instruction if key stored in VX is not pressed
         let index = self.get_keypad_index_from_value(self.registers[x] & 0xF);
         if !self.keypad[index] {
-          self.pc = self.pc.wrapping_add(2);
+          self.skip();
+        }
+      },
+      (0xF000, 0x0000, 0x0000, 0x0000) => {
+        // XOCHIP: load i with a 16-bit address from the next opcode
+        let op1 = self.memory[self.pc as usize];
+        let op2 = self.memory[(self.pc + 1) as usize];
+        let next_op = ((op1 as u16) << 8) | (op2 as u16);
+        self.i = next_op;
+        self.pc = self.pc.wrapping_add(2);
+      },
+      (0xF000, 0x0000, 0x0000, 0x0002) => {
+        // XOCHIP: store 16 bytes starting at i in the audio pattern buffer.
+        for byte in 0..16 {
+          self.audio_pattern_buffer[byte] = self.memory[self.i as usize + byte];
         }
       },
       (0xF000, _, 0x0000, 0x0007) => {
@@ -591,5 +621,12 @@ impl Chip8 {
 
   fn max_cols(&self) -> usize {
     if self.hires_mode { 128 } else { 64 }
+  }
+
+  fn skip(&mut self) {
+    let op1 = self.memory[self.pc as usize];
+    let op2 = self.memory[(self.pc + 1) as usize];
+    let next_op = ((op1 as u16) << 8) | (op2 as u16);
+    self.pc = if next_op == 0xF000 { self.pc.wrapping_add(4) } else { self.pc.wrapping_add(2) };
   }
 }

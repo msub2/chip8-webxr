@@ -22,7 +22,7 @@ fn main() {
         .build(&event_loop)
         .unwrap();
     let mut input = WinitInputHelper::new();
-    let variant = Variant::SCHIP_LEGACY;
+    let variant = Variant::XOCHIP;
     let mut chip8 = Chip8::new(variant);
     let mut pixels = {
         let window_size = window.inner_size();
@@ -32,7 +32,7 @@ fn main() {
         Pixels::new(initial_width, initial_height, surface_texture).unwrap()
     };
     chip8.load_font();
-    chip8.load_rom_from_file("./roms/test/5-quirks.ch8");
+    chip8.load_rom_from_file("./roms/games/skyward.ch8");
 
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
     let sink = Sink::try_new(&stream_handle).unwrap();
@@ -54,7 +54,7 @@ fn main() {
             Event::AboutToWait => {
                 for _ in 0..10 {
                     chip8.run();
-                    if variant != Variant::SCHIP_MODERN && chip8.displayed_this_frame() {
+                    if matches!(variant, Variant::CHIP8 | Variant::SCHIP_LEGACY) && chip8.displayed_this_frame() {
                         break;
                     }
                 }
