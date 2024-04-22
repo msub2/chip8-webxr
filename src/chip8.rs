@@ -210,6 +210,14 @@ impl Chip8 {
         self.display.rotate_right(amount * max_cols as usize);
         self.display[..amount * max_cols as usize].fill(0);
       },
+      (0x0000, 0x0000, 0x00D0, _) => {
+        // XOCHIP: Scroll the display up by N pixels
+        let max_cols = self.max_cols();
+
+        let amount: usize = if !self.hires_mode && self.variant == Variant::SCHIP_LEGACY { n as usize / 2 } else { n as usize };
+
+        self.display.rotate_left(amount * max_cols as usize);
+      },
       (0x0000, 0x0000, 0x00E0, 0x0000) => {
         // Clear the display
         self.display.fill(0);
@@ -345,11 +353,11 @@ impl Chip8 {
       },
       (0x8000, _, _, 0x0006) => {
         let lsb = self.registers[x] & 0x01;
-        if self.variant == Variant::CHIP8 {
+        if !matches!(self.variant, Variant::SCHIP_LEGACY | Variant::SCHIP_MODERN) {
           // Set register VX to VY >> 1
           // Set register VF to the least significant bit prior to the shift
           self.registers[x] = self.registers[y] >> 1;
-        } else if self.variant == Variant::SCHIP_LEGACY {
+        } else {
           self.registers[x] >>= 1;
         }
         self.registers[0xF] = lsb;
@@ -364,11 +372,11 @@ impl Chip8 {
       },
       (0x8000, _, _, 0x000E) => {
         let msb = (self.registers[x] & 0x80) >> 7;
-        if self.variant == Variant::CHIP8 {
+        if !matches!(self.variant, Variant::SCHIP_LEGACY | Variant::SCHIP_MODERN) {
           // Set register VX to VY << 1
           // Set register VF to the most significant bit prior to the shift
           self.registers[x] = self.registers[y] << 1;
-        } else if self.variant == Variant::SCHIP_LEGACY {
+        } else {
           self.registers[x] <<= 1;
         }
 
@@ -385,10 +393,10 @@ impl Chip8 {
         self.i = nnn;
       },
       (0xB000, _, _, _) => {
-        if self.variant == Variant::CHIP8 {
+        if !matches!(self.variant, Variant::SCHIP_LEGACY | Variant::SCHIP_MODERN) {
           // Jump to address NNN + V0
           self.pc = nnn + self.registers[0] as u16;
-        } else if self.variant == Variant::SCHIP_LEGACY {
+        } else {
           // Jump to address XNN + VX
           self.pc = nnn + self.registers[x] as u16;
         }
@@ -515,7 +523,7 @@ impl Chip8 {
         for i in 0..(x + 1) {
           self.memory[(self.i as usize + i) % self.memory.len()] = self.registers[i];
         }
-        if self.variant == Variant::CHIP8 {
+        if !matches!(self.variant, Variant::SCHIP_LEGACY | Variant::SCHIP_MODERN) {
           self.i = self.i.wrapping_add(x as u16 + 1);
         }
       },
@@ -525,7 +533,7 @@ impl Chip8 {
         for i in 0..(x + 1) {
           self.registers[i] = self.memory[(self.i as usize + i) % self.memory.len()];
         }
-        if self.variant == Variant::CHIP8 {
+        if !matches!(self.variant, Variant::SCHIP_LEGACY | Variant::SCHIP_MODERN) {
           self.i = self.i.wrapping_add(x as u16 + 1);
         }
       },
