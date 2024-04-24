@@ -32,7 +32,7 @@ fn main() {
         Pixels::new(initial_width, initial_height, surface_texture).unwrap()
     };
     chip8.load_font();
-    chip8.load_rom_from_file("./roms/games/skyward.ch8");
+    chip8.load_rom_from_file("./roms/games/anEveningToDieFor.ch8");
 
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
     let sink = Sink::try_new(&stream_handle).unwrap();
@@ -57,6 +57,9 @@ fn main() {
                     if matches!(variant, Variant::CHIP8 | Variant::SCHIP_LEGACY) && chip8.displayed_this_frame() {
                         break;
                     }
+                    if chip8.should_exit() {
+                        elwt.exit();
+                    }
                 }
                 chip8.decrement_timers();
                 if chip8.hires_mode() && pixels.frame().len() == 64 * 32 * 4 {
@@ -69,9 +72,22 @@ fn main() {
                 let frame = pixels.frame_mut();
                 // The frame data is RGBA
                 for i in 0..display_len {
-                    frame[i * 4] = display[i] * 255;
-                    frame[i * 4 + 1] = display[i] * 255;
-                    frame[i * 4 + 2] = display[i] * 255;
+                    let color = {
+                        let plane1 = display[i];
+                        let plane2 = display[i + display_len];
+                        if plane1 != 0 && plane2 == 0 {
+                            [255, 255, 255]
+                        } else if plane1 == 0 && plane2 != 0 {
+                            [255, 0, 0]
+                        } else if plane1 != 0 && plane2 != 0 {
+                            [0, 255, 0]
+                        } else {
+                            [0, 0, 0]
+                        }
+                    };
+                    frame[i * 4] = color[0];
+                    frame[i * 4 + 1] = color[1];
+                    frame[i * 4 + 2] = color[2];
                     frame[i * 4 + 3] = 255;
                 }
                 if let Err(err) = pixels.render() {

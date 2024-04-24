@@ -23,7 +23,7 @@ pub enum Variant {
 #[wasm_bindgen]
 pub struct Chip8 {
   memory: [u8; 65536],
-  display: [u8; 128 * 64],
+  display: [[u8; 128 * 64]; 4],
   pc: u16,
   i: u16,
   stack: Vec<u16>,
@@ -35,11 +35,13 @@ pub struct Chip8 {
   last_pressed_key: Option<usize>,
   displayed: bool,
   variant: Variant,
-  // SCHIP
+  // SCHIP and newer
   hires_mode: bool,
   flags: [u8; 8],
+  should_exit: bool,
   // XOCHIP
   audio_pattern_buffer: [u8; 16],
+  plane: u8,
 }
 
 #[wasm_bindgen]
@@ -49,7 +51,7 @@ impl Chip8 {
   pub fn new(variant: Variant) -> Chip8 {
     Self {
       memory: [0; 65536],
-      display: [0; 128 * 64],
+      display: [[0; 128 * 64]; 4],
       pc: 0x200,
       i: 0,
       stack: Vec::new(),
@@ -61,11 +63,13 @@ impl Chip8 {
       last_pressed_key: None,
       displayed: false,
       variant,
-      // SCHIP
+      // SCHIP and newer
       hires_mode: false,
       flags: [0; 8],
+      should_exit: false,
       // XOCHIP
       audio_pattern_buffer: [0; 16],
+      plane: 0x1,
     }
   }
 
@@ -136,7 +140,11 @@ impl Chip8 {
 
   /// Get screen pixel data as a sequence of Uint8s
   pub fn get_display(&self) -> Vec<u8> {
-    Vec::from(&self.display)
+    let mut combined_vec: Vec<u8> = vec![];
+    for plane in 0..2 {
+      combined_vec.extend_from_slice(self.display[plane].as_slice());
+    }
+    combined_vec
   }
 
   pub fn get_pc(&self) -> u16 {
@@ -184,7 +192,7 @@ impl Chip8 {
     self.displayed = false;
 
     // Fetch the next 16-bit instruction
-    if self.pc as usize >= self.memory.len() {
+    if self.pc as usize >= self.memory_length() {
       // Probably not accurate to real life but just set back to start of program
       self.pc = 0x0200;
     }
@@ -211,8 +219,11 @@ impl Chip8 {
 
         let amount: usize = if !self.hires_mode && self.variant == Variant::SCHIP_LEGACY { n as usize / 2 } else { n as usize };
 
-        self.display.rotate_right(amount * max_cols as usize);
-        self.display[..amount * max_cols as usize].fill(0);
+        for plane in 0..2 {
+          if (self.plane & (plane + 1)) == 0 { continue; }
+          self.display[plane as usize].rotate_right(amount * max_cols as usize);
+          self.display[plane as usize][..amount * max_cols as usize].fill(0);
+        }
       },
       (0x0000, 0x0000, 0x00D0, _) => {
         // XOCHIP: Scroll the display up by N pixels
@@ -220,11 +231,17 @@ impl Chip8 {
 
         let amount: usize = if !self.hires_mode && self.variant == Variant::SCHIP_LEGACY { n as usize / 2 } else { n as usize };
 
-        self.display.rotate_left(amount * max_cols as usize);
+        for plane in 0..2 {
+          if (self.plane & (plane + 1)) == 0 { continue; }
+          self.display[plane as usize].rotate_left(amount * max_cols as usize);
+        }
       },
       (0x0000, 0x0000, 0x00E0, 0x0000) => {
         // Clear the display
-        self.display.fill(0);
+        for plane in 0..2 {
+          if (self.plane & (plane + 1)) == 0 { continue; }
+          self.display[plane as usize].fill(0);
+        }
       },
       (0x0000, 0x0000, 0x00E0, 0x000E) => {
         // Return from subroutine
@@ -243,12 +260,15 @@ impl Chip8 {
 
         let amount = if !self.hires_mode && self.variant == Variant::SCHIP_LEGACY { 2 } else { 4 };
 
-        for row in 0..max_rows {
-          for col in (0..max_cols).rev() {
-            if col > 3 {
-              self.display[(row * max_cols) + col] = self.display[(row * max_cols) + col - amount];
-            } else {
-              self.display[(row * max_cols) + col] = 0;
+        for plane in 0..2 {
+          if (self.plane & (plane + 1)) == 0 { continue; }
+          for row in 0..max_rows {
+            for col in (0..max_cols).rev() {
+              if col > 3 {
+                self.display[plane as usize][(row * max_cols) + col] = self.display[plane as usize][(row * max_cols) + col - amount];
+              } else {
+                self.display[plane as usize][(row * max_cols) + col] = 0;
+              }
             }
           }
         }
@@ -260,16 +280,22 @@ impl Chip8 {
 
         let amount = if !self.hires_mode && self.variant == Variant::SCHIP_LEGACY { 2 } else { 4 };
 
-        // Similar logic as above step, but for left instead of right
-        for row in 0..max_rows {
-          for col in 0..max_cols {
-            if col < max_cols - 4 {
-              self.display[(row * max_cols) + col] = self.display[(row * max_cols) + col + amount];
-            } else {
-              self.display[(row * max_cols) + col] = 0;
+        for plane in 0..2 {
+          if (self.plane & (plane + 1)) == 0 { continue; }
+          for row in 0..max_rows {
+            for col in 0..max_cols {
+              if col < max_cols - 4 {
+                self.display[plane as usize][(row * max_cols) + col] = self.display[plane as usize][(row * max_cols) + col + amount];
+              } else {
+                self.display[plane as usize][(row * max_cols) + col] = 0;
+              }
             }
           }
         }
+      },
+      (0x0000, 0x0000, 0x00F0, 0x000D) => {
+        // Exit the interpreter
+        self.should_exit = true;
       },
       (0x0000, 0x0000, 0x00F0, 0x000E) => {
         // SCHIP: Use lores mode
@@ -438,35 +464,37 @@ impl Chip8 {
 
         self.registers[0xF] = 0;
 
-        // Start iterating through the rows of the sprite
-        for row in 0..height {
-          if self.variant != Variant::XOCHIP && y_val + row == max_height {
-            break;
-          }
-          // Start iterating through the bytes in the row
-          for column in 0..width {
-            if self.variant != Variant::XOCHIP && x_val + column == max_width {
+        for plane in 0..2 {
+          if (self.plane & (plane + 1)) == 0 { continue; }
+          // Start iterating through the rows of the sprite
+          for row in 0..height {
+            if self.variant != Variant::XOCHIP && y_val + row == max_height {
               break;
             }
-            let scale_factor = if self.hires_mode && n == 0 { 2 } else { 1 };
-            // An offset to the next byte to apply in case we are drawing a 16x16 sprite
-            let offset = if column > 7 { row * scale_factor + 1 } else { row * scale_factor };
-            // The location of the sprite in memory.
-            let sprite = self.memory[(self.i + offset) as usize % self.memory.len()];
-            let pixel_x = (x_val + column) % max_width;
-            let pixel_y = (y_val + row) % max_height;
-            // 0x80 is 0b10000000, this iterates through each bit
-            if (sprite & (0x80 >> (column % 8))) != 0 {
-              let pixel = (pixel_x + pixel_y * max_width) as usize;
-              if self.display[pixel] == 1 {
-                self.registers[0xF] = 1;
+            // Start iterating through the bytes in the row
+            for column in 0..width {
+              if self.variant != Variant::XOCHIP && x_val + column == max_width {
+                break;
               }
-              self.display[pixel] ^= 1;
+              let scale_factor = if self.hires_mode && n == 0 { 2 } else { 1 };
+              // An offset to the next byte to apply in case we are drawing a 16x16 sprite
+              let offset = if column > 7 { row * scale_factor + 1 } else { row * scale_factor };
+              // The location of the sprite in memory.
+              let sprite = self.memory[(self.i + offset) as usize % self.memory_length()];
+              let pixel_x = (x_val + column) % max_width;
+              let pixel_y = (y_val + row) % max_height;
+              // 0x80 is 0b10000000, this iterates through each bit
+              if (sprite & (0x80 >> (column % 8))) != 0 {
+                let pixel = (pixel_x + pixel_y * max_width) as usize;
+                if self.display[plane as usize][pixel] == 1 {
+                  self.registers[0xF] = 1;
+                }
+                self.display[plane as usize][pixel] ^= 1;
+              }
             }
           }
+          self.displayed = true;
         }
-
-        self.displayed = true;
       },
       (0xE000, _, 0x0090, 0x000E) => {
         // Skip next instruction if key stored in VX is pressed
@@ -489,6 +517,11 @@ impl Chip8 {
         let next_op = ((op1 as u16) << 8) | (op2 as u16);
         self.i = next_op;
         self.pc = self.pc.wrapping_add(2);
+      },
+      (0xF000, _, 0x0000, 0x0001) => {
+        // XOCHIP: select bit planes to draw on when drawing with Dxy0/Dxyn
+        println!("Setting plane to {}", x);
+        self.plane = x as u8;
       },
       (0xF000, 0x0000, 0x0000, 0x0002) => {
         // XOCHIP: store 16 bytes starting at i in the audio pattern buffer.
@@ -543,15 +576,15 @@ impl Chip8 {
       }
       (0xF000, _, 0x0030, 0x0003) => {
         // Store BCD representation of VX in memory locations I, I+1, and I+2
-        self.memory[self.i as usize % self.memory.len()] = self.registers[x] / 100;
-        self.memory[(self.i as usize + 1) % self.memory.len()] = (self.registers[x] / 10) % 10;
-        self.memory[(self.i as usize + 2) % self.memory.len()] = (self.registers[x] % 100) % 10;
+        self.memory[self.i as usize % self.memory_length()] = self.registers[x] / 100;
+        self.memory[(self.i as usize + 1) % self.memory_length()] = (self.registers[x] / 10) % 10;
+        self.memory[(self.i as usize + 2) % self.memory_length()] = (self.registers[x] % 100) % 10;
       },
       (0xF000, _, 0x0050, 0x0005) => {
         // Store the values of registers V0 to VX inclusive in memory starting at address I
         // I is set to I + X + 1 after operation
         for i in 0..(x + 1) {
-          self.memory[(self.i as usize + i) % self.memory.len()] = self.registers[i];
+          self.memory[(self.i as usize + i) % self.memory_length()] = self.registers[i];
         }
         if !matches!(self.variant, Variant::SCHIP_LEGACY | Variant::SCHIP_MODERN) {
           self.i = self.i.wrapping_add(x as u16 + 1);
@@ -561,7 +594,7 @@ impl Chip8 {
         // Fill registers V0 to VX inclusive with the values stored in memory starting at address I
         // I is set to I + X + 1 after operation
         for i in 0..(x + 1) {
-          self.registers[i] = self.memory[(self.i as usize + i) % self.memory.len()];
+          self.registers[i] = self.memory[(self.i as usize + i) % self.memory_length()];
         }
         if !matches!(self.variant, Variant::SCHIP_LEGACY | Variant::SCHIP_MODERN) {
           self.i = self.i.wrapping_add(x as u16 + 1);
@@ -580,7 +613,7 @@ impl Chip8 {
         }
       }
       _ => {
-        println!("Unknown opcode: 0x{:04X}", op);
+        println!("Unknown opcode: 0x{:04X}, pc at {:04X}", op, self.pc);
       }
     }
 
@@ -601,6 +634,10 @@ impl Chip8 {
     if self.sound_timer > 0 {
       self.sound_timer -= 1;
     }
+  }
+
+  pub fn should_exit(&self) -> bool {
+    self.should_exit
   }
 
   fn get_keypad_value_from_index(&self, key_index: u8) -> u8 {
@@ -628,5 +665,12 @@ impl Chip8 {
     let op2 = self.memory[(self.pc + 1) as usize];
     let next_op = ((op1 as u16) << 8) | (op2 as u16);
     self.pc = if next_op == 0xF000 { self.pc.wrapping_add(4) } else { self.pc.wrapping_add(2) };
+  }
+
+  fn memory_length(&self) -> usize {
+    match self.variant {
+      Variant::XOCHIP => 65535,
+      _ => 4096,
+    }
   }
 }
