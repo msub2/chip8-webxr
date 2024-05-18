@@ -1,14 +1,18 @@
 mod chip8;
 mod square_wave;
 
+use std::collections::HashMap;
+
 use pixels::{Pixels, SurfaceTexture};
 use rodio::{source::Source, OutputStream, Sink};
+use muda::{accelerator::{Accelerator, Code, Modifiers}, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu};
 use winit::{
     dpi::LogicalSize,
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     keyboard::KeyCode,
-    window::WindowBuilder,
+    raw_window_handle::{HasWindowHandle, RawWindowHandle},
+    window::{Window, WindowBuilder},
 };
 use winit_input_helper::WinitInputHelper;
 use chip8::{Chip8, Variant};
@@ -21,6 +25,12 @@ fn main() {
         .with_title("SILK-8")
         .build(&event_loop)
         .unwrap();
+    let hwnd = match window.window_handle().unwrap().as_raw() {
+        RawWindowHandle::Win32(handle) => handle.hwnd.get(),
+        _ => panic!("not running on Windows")
+    };
+    let (menubar, menubar_items) = create_menubar();
+    menubar.init_for_hwnd(hwnd).unwrap();
     let mut input = WinitInputHelper::new();
     let variant = Variant::XOCHIP;
     let mut chip8 = Chip8::new(variant);
@@ -42,6 +52,15 @@ fn main() {
     event_loop.set_control_flow(ControlFlow::Poll);
     
     let _ = event_loop.run(move |event, elwt| {
+        if let Ok(event) = MenuEvent::receiver().try_recv() {
+            let item_string = menubar_items.get(event.id()).unwrap().to_string();
+            match item_string.as_str() {
+                "Load ROM" => {
+                    println!("Load ROM menu item activated");
+                },
+                _ => {}
+            }
+        }
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
@@ -120,4 +139,26 @@ fn main() {
             }
         }
     });
+}
+
+fn create_menubar() -> (Menu, HashMap<MenuId, String>) {
+    let menu = Menu::new();
+    let load_rom = MenuItem::new(
+        "Load ROM",
+        true,
+        Some(Accelerator::new(Some(Modifiers::CONTROL), Code::KeyO)),
+    );
+    let submenu = Submenu::with_items(
+        "File",
+        true,
+        &[
+            &load_rom
+        ],
+    ).unwrap();
+    menu.append(&submenu).unwrap();
+
+    let mut menu_ids = HashMap::new();
+    menu_ids.insert(load_rom.id().clone(), "Load ROM".to_string());
+
+    (menu, menu_ids)
 }
