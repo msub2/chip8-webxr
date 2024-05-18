@@ -30,38 +30,19 @@
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
     import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
-    import init, { Chip8, Variant } from './silk8_web.js';
+    import init, { load_rom, set_keypad_state } from './silk8_web.js';
 
     // Initialize Chip-8 emulator
     await init();
-    let variant = Variant.SCHIP_MODERN;
-    const chip8 = new Chip8(variant);
+    let chipCanvas = document.querySelector('[alt="SILK-8"]');
+    chipCanvas.style.position = 'fixed';
+    chipCanvas.style.zIndex = -2;
 
     // Load ROM
     const rom = await fetch('../roms/test/5-quirks.ch8');
     const romBuffer = await rom.arrayBuffer();
     const romBytes = new Uint8Array(romBuffer);
-    chip8.load_rom_from_bytes(romBytes);
-
-    // Hook up emulator audio to WebAudio
-    let audioCtx = new AudioContext();
-    let playing = false;
-
-    let gain = audioCtx.createGain();
-    gain.gain.value = 0.0;
-    gain.connect(audioCtx.destination);
-
-    let oscillator = audioCtx.createOscillator();
-    oscillator.connect(gain);
-    oscillator.type = "square";
-    oscillator.start();
-
-    // Hook up emulator display to HTML canvas
-    const canvas = document.createElement("canvas");
-    canvas.width = 640;
-    canvas.height = 320;
-    const canvasContext = canvas.getContext("2d");
-    const imageData = new Uint8ClampedArray(128 * 64 * 4);
+    load_rom(romBytes);
 
     // Hook up emulator input
     const chip8Layout = [
@@ -70,16 +51,6 @@
       'a', 's', 'd', 'f',
       'z', 'x', 'c', 'v'
     ];
-    document.addEventListener("keydown", (event) => {
-      if (chip8Layout.includes(event.key)) {
-        chip8.set_keypad_state(chip8Layout.indexOf(event.key), true);
-      }
-    });
-    document.addEventListener("keyup", (event) => {
-      if (chip8Layout.includes(event.key)) {
-        chip8.set_keypad_state(chip8Layout.indexOf(event.key), false);
-      }
-    });
 
     // Setup three.js scene
     let hand1, hand2;
@@ -191,7 +162,7 @@
     controls.update();
 
     const planeGeometry = new THREE.PlaneGeometry(2, 1);
-    const texture = new THREE.CanvasTexture(canvas);
+    const texture = new THREE.CanvasTexture(chipCanvas);
     const material = new THREE.MeshBasicMaterial({ map: texture });
     const plane = new THREE.Mesh(planeGeometry, material);
     plane.position.set(0, 1.6, -2);
@@ -252,7 +223,7 @@
           fontColor: new THREE.Color(0xffffff)
         },
         onSet: () => {
-          chip8.set_keypad_state(index, false);
+          set_keypad_state(index, false);
         }
       };
       const selectedState = {
@@ -262,7 +233,7 @@
           fontColor: new THREE.Color(0x222222)
         },
         onSet: () => {
-          chip8.set_keypad_state(index, true);
+          set_keypad_state(index, true);
         }
       };
 
@@ -392,67 +363,7 @@
       texture.needsUpdate = true;
       updateButtons();
       ThreeMeshUI.update();
-
-      for (let i = 0; i < 10; i++) {
-        chip8.run();
-        if ((variant == Variant.CHIP8 || variant == Variant.SCHIP_LEGACY) && chip8.displayed_this_frame()) {
-          // This simulates waiting for the vertical blank interrupt after drawing a sprite.
-          break;
-        }
-      }
-      chip8.decrement_timers();
-      chip8.get_display().forEach((value, idx) => {
-        imageData[idx * 4] = value * 255;
-        imageData[idx * 4 + 1] = value * 255;
-        imageData[idx * 4 + 2] = value * 255;
-        imageData[idx * 4 + 3] = 255;
-      });
-
-      // Adjusting the scale
-      const scaleFactor = chip8.hires_mode() ? 5 : 10;
-      const width = chip8.hires_mode() ? 128 : 64;
-      const scaledImageData = scaleImageData(imageData, width, scaleFactor);
-      canvasContext.putImageData(scaledImageData, 0, 0);
-
-      // Ideally this would just be calling start/stop on the oscillator,
-      // but it seems like there's a race condition with rAF that causes
-      // start to get called twice, so we just mute from the gain node instead
-      if (chip8.get_sound_timer() > 0 && !playing) {
-        gain.gain.value = 0.1;
-        playing = true;
-      } else if (chip8.get_sound_timer() == 0 && playing) {
-        gain.gain.value = 0.0;
-        playing = false;
-      }
     };
-
-    function scaleImageData(imageData, width, scaleFactor) {
-      // Calculate the dimensions of the scaled image data
-      const scaledImageData = canvasContext.createImageData(width * scaleFactor, imageData.length / (width * 4) * scaleFactor);
-
-      // Loop through each pixel in the scaled image data
-      for (let y = 0; y < scaledImageData.height; y++) {
-        for (let x = 0; x < scaledImageData.width; x++) {
-          // Calculate the corresponding original (unscaled) coordinates
-          const originalX = Math.floor(x / scaleFactor);
-          const originalY = Math.floor(y / scaleFactor);
-
-          // Calculate the index of the original pixel in the original image data array
-          const originalIndex = (originalY * width + originalX) * 4;
-
-          // Calculate the index of the current pixel in the scaled image data array
-          const scaledIndex = (y * scaledImageData.width + x) * 4;
-
-          // Copy pixel data from the original image data to the scaled image data
-          for (let i = 0; i < 4; i++) {
-            scaledImageData.data[scaledIndex + i] = imageData[originalIndex + i];
-          }
-        }
-      }
-
-      // Return the scaled image data
-      return scaledImageData;
-    }
 
     renderer.setAnimationLoop(draw);
   </script>

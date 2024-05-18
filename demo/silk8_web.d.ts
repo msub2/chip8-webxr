@@ -1,129 +1,85 @@
 /* tslint:disable */
 /* eslint-disable */
 /**
-* Which particular CHIP-8 interpreter to emulate
 */
-export enum Variant {
-  CHIP8 = 0,
-  SCHIP_LEGACY = 1,
-  SCHIP_MODERN = 2,
-  XOCHIP = 3,
-}
+export function main(): void;
 /**
-*/
-export class Chip8 {
-  free(): void;
-/**
-* Create a new Chip8 instance
-* @param {Variant} variant
-*/
-  constructor(variant: Variant);
-/**
-* Load the default font into memory at 0x0050
-*/
-  load_font(): void;
-/**
-* Load a ROM into memory at 0x0200 from a file
-* @param {string} rom
-*/
-  load_rom_from_file(rom: string): void;
-/**
-* Load a ROM into memory at 0x0200 from a sequence of Uint8s
 * @param {Uint8Array} bytes
 */
-  load_rom_from_bytes(bytes: Uint8Array): void;
+export function load_rom(bytes: Uint8Array): void;
 /**
-* @returns {Uint8Array}
+* @param {number} keypad
+* @param {boolean} state
 */
-  get_memory(): Uint8Array;
-/**
-* Get screen pixel data as a sequence of Uint8s
-* @returns {Uint8Array}
-*/
-  get_display(): Uint8Array;
-/**
-* @returns {number}
-*/
-  get_pc(): number;
-/**
-* @returns {number}
-*/
-  get_delay_timer(): number;
-/**
-* @returns {number}
-*/
-  get_sound_timer(): number;
-/**
-* @returns {Uint16Array}
-*/
-  get_stack(): Uint16Array;
-/**
-* @returns {Uint8Array}
-*/
-  get_keypad(): Uint8Array;
-/**
-* @returns {number}
-*/
-  get_index(): number;
-/**
-* @returns {Uint8Array}
-*/
-  get_registers(): Uint8Array;
-/**
-* @returns {boolean}
-*/
-  displayed_this_frame(): boolean;
-/**
-* @returns {boolean}
-*/
-  hires_mode(): boolean;
-/**
-* @returns {number}
-*/
-  get_current_opcode(): number;
-/**
-* Execute the next instruction at the program counter
-*/
-  run(): void;
-/**
-* @param {number} key_index
-* @param {boolean} value
-*/
-  set_keypad_state(key_index: number, value: boolean): void;
-/**
-*/
-  decrement_timers(): void;
-}
+export function set_keypad_state(keypad: number, state: boolean): void;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly __wbg_chip8_free: (a: number) => void;
-  readonly chip8_new: (a: number) => number;
-  readonly chip8_load_font: (a: number) => void;
-  readonly chip8_load_rom_from_file: (a: number, b: number, c: number) => void;
-  readonly chip8_load_rom_from_bytes: (a: number, b: number, c: number) => void;
-  readonly chip8_get_memory: (a: number, b: number) => void;
-  readonly chip8_get_display: (a: number, b: number) => void;
-  readonly chip8_get_pc: (a: number) => number;
-  readonly chip8_get_delay_timer: (a: number) => number;
-  readonly chip8_get_sound_timer: (a: number) => number;
-  readonly chip8_get_stack: (a: number, b: number) => void;
-  readonly chip8_get_keypad: (a: number, b: number) => void;
-  readonly chip8_get_index: (a: number) => number;
-  readonly chip8_get_registers: (a: number, b: number) => void;
-  readonly chip8_displayed_this_frame: (a: number) => number;
-  readonly chip8_hires_mode: (a: number) => number;
-  readonly chip8_get_current_opcode: (a: number) => number;
-  readonly chip8_run: (a: number) => void;
-  readonly chip8_set_keypad_state: (a: number, b: number, c: number) => void;
-  readonly chip8_decrement_timers: (a: number) => void;
+  readonly main: () => void;
+  readonly load_rom: (a: number, b: number) => void;
+  readonly set_keypad_state: (a: number, b: number) => void;
+  readonly wgpu_compute_pass_set_pipeline: (a: number, b: number) => void;
+  readonly wgpu_compute_pass_set_bind_group: (a: number, b: number, c: number, d: number, e: number) => void;
+  readonly wgpu_compute_pass_set_push_constant: (a: number, b: number, c: number, d: number) => void;
+  readonly wgpu_compute_pass_insert_debug_marker: (a: number, b: number, c: number) => void;
+  readonly wgpu_compute_pass_push_debug_group: (a: number, b: number, c: number) => void;
+  readonly wgpu_compute_pass_pop_debug_group: (a: number) => void;
+  readonly wgpu_compute_pass_write_timestamp: (a: number, b: number, c: number) => void;
+  readonly wgpu_compute_pass_begin_pipeline_statistics_query: (a: number, b: number, c: number) => void;
+  readonly wgpu_compute_pass_end_pipeline_statistics_query: (a: number) => void;
+  readonly wgpu_compute_pass_dispatch_workgroups: (a: number, b: number, c: number, d: number) => void;
+  readonly wgpu_compute_pass_dispatch_workgroups_indirect: (a: number, b: number, c: number) => void;
+  readonly wgpu_render_bundle_set_pipeline: (a: number, b: number) => void;
+  readonly wgpu_render_bundle_set_bind_group: (a: number, b: number, c: number, d: number, e: number) => void;
+  readonly wgpu_render_bundle_set_vertex_buffer: (a: number, b: number, c: number, d: number, e: number) => void;
+  readonly wgpu_render_bundle_set_push_constants: (a: number, b: number, c: number, d: number, e: number) => void;
+  readonly wgpu_render_bundle_draw: (a: number, b: number, c: number, d: number, e: number) => void;
+  readonly wgpu_render_bundle_draw_indexed: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+  readonly wgpu_render_bundle_draw_indirect: (a: number, b: number, c: number) => void;
+  readonly wgpu_render_bundle_draw_indexed_indirect: (a: number, b: number, c: number) => void;
+  readonly wgpu_render_pass_set_pipeline: (a: number, b: number) => void;
+  readonly wgpu_render_pass_set_bind_group: (a: number, b: number, c: number, d: number, e: number) => void;
+  readonly wgpu_render_pass_set_vertex_buffer: (a: number, b: number, c: number, d: number, e: number) => void;
+  readonly wgpu_render_pass_set_push_constants: (a: number, b: number, c: number, d: number, e: number) => void;
+  readonly wgpu_render_pass_draw: (a: number, b: number, c: number, d: number, e: number) => void;
+  readonly wgpu_render_pass_draw_indexed: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+  readonly wgpu_render_pass_draw_indirect: (a: number, b: number, c: number) => void;
+  readonly wgpu_render_pass_draw_indexed_indirect: (a: number, b: number, c: number) => void;
+  readonly wgpu_render_pass_multi_draw_indirect: (a: number, b: number, c: number, d: number) => void;
+  readonly wgpu_render_pass_multi_draw_indexed_indirect: (a: number, b: number, c: number, d: number) => void;
+  readonly wgpu_render_pass_multi_draw_indirect_count: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+  readonly wgpu_render_pass_multi_draw_indexed_indirect_count: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+  readonly wgpu_render_pass_set_blend_constant: (a: number, b: number) => void;
+  readonly wgpu_render_pass_set_scissor_rect: (a: number, b: number, c: number, d: number, e: number) => void;
+  readonly wgpu_render_pass_set_viewport: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
+  readonly wgpu_render_pass_set_stencil_reference: (a: number, b: number) => void;
+  readonly wgpu_render_pass_insert_debug_marker: (a: number, b: number, c: number) => void;
+  readonly wgpu_render_pass_push_debug_group: (a: number, b: number, c: number) => void;
+  readonly wgpu_render_pass_pop_debug_group: (a: number) => void;
+  readonly wgpu_render_pass_write_timestamp: (a: number, b: number, c: number) => void;
+  readonly wgpu_render_pass_begin_pipeline_statistics_query: (a: number, b: number, c: number) => void;
+  readonly wgpu_render_pass_end_pipeline_statistics_query: (a: number) => void;
+  readonly wgpu_render_pass_execute_bundles: (a: number, b: number, c: number) => void;
+  readonly wgpu_render_bundle_set_index_buffer: (a: number, b: number, c: number, d: number, e: number) => void;
+  readonly wgpu_render_bundle_pop_debug_group: (a: number) => void;
+  readonly wgpu_render_bundle_insert_debug_marker: (a: number, b: number) => void;
+  readonly wgpu_render_bundle_push_debug_group: (a: number, b: number) => void;
+  readonly wgpu_render_pass_set_index_buffer: (a: number, b: number, c: number, d: number, e: number) => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
-  readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
+  readonly __wbindgen_export_2: WebAssembly.Table;
+  readonly _dyn_core__ops__function__FnMut_____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h2e46341fe5a0cc17: (a: number, b: number) => void;
+  readonly _dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h0c8855542521505b: (a: number, b: number, c: number) => void;
+  readonly _dyn_core__ops__function__FnMut__A_B___Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h429eee5052e9cd89: (a: number, b: number, c: number, d: number) => void;
+  readonly wasm_bindgen__convert__closures__invoke0_mut__h87ca3b8d89c92e4d: (a: number, b: number) => void;
+  readonly wasm_bindgen__convert__closures__invoke1_mut__h3ae2493cb74d7036: (a: number, b: number, c: number) => void;
+  readonly wasm_bindgen__convert__closures__invoke0_mut__hf851db0347269b6f: (a: number, b: number) => void;
+  readonly _dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h509e51602e330a66: (a: number, b: number, c: number) => void;
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;
   readonly __wbindgen_exn_store: (a: number) => void;
+  readonly __wbindgen_start: () => void;
 }
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;

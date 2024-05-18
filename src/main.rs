@@ -32,11 +32,10 @@ fn main() {
         Pixels::new(initial_width, initial_height, surface_texture).unwrap()
     };
     chip8.load_font();
-    chip8.load_rom_from_file("./roms/games/skyward.ch8");
+    chip8.load_rom_from_file("./roms/games/Animal Race [Brian Astle].ch8");
 
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
     let sink = Sink::try_new(&stream_handle).unwrap();
-    // Add a dummy source of the sake of the example.
     let source = SquareWave::new(440.0).amplify(0.10);
     sink.append(source);
 

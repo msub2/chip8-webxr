@@ -1,6 +1,5 @@
 use std::fs;
 use std::path::Path;
-use wasm_bindgen::prelude::*;
 
 const STANDARD_LAYOUT: [u8; 16] = [
   0x1, 0x2, 0x3, 0xC,
@@ -9,7 +8,6 @@ const STANDARD_LAYOUT: [u8; 16] = [
   0xA, 0x0, 0xB, 0xF
 ];
 
-#[wasm_bindgen]
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[allow(non_camel_case_types)]
 /// Which particular CHIP-8 interpreter to emulate
@@ -20,7 +18,6 @@ pub enum Variant {
   XOCHIP
 }
 
-#[wasm_bindgen]
 pub struct Chip8 {
   memory: [u8; 65536],
   display: [u8; 128 * 64],
@@ -42,10 +39,8 @@ pub struct Chip8 {
   audio_pattern_buffer: [u8; 16],
 }
 
-#[wasm_bindgen]
 impl Chip8 {
   /// Create a new Chip8 instance
-  #[wasm_bindgen(constructor)]
   pub fn new(variant: Variant) -> Chip8 {
     Self {
       memory: [0; 65536],
