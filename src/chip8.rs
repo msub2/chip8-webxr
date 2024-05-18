@@ -115,14 +115,25 @@ impl Chip8 {
   /// Load a ROM into memory at 0x0200 from a file
   pub fn load_rom_from_file(&mut self, rom: &str) {
     let bytes = fs::read(Path::new(rom)).expect("Failed to load ROM");
-    let memory_slice = &mut self.memory[0x200..0x200 + bytes.len()];
-    memory_slice.copy_from_slice(bytes.as_slice());
+    self.load_rom_from_bytes(bytes);
   }
 
   /// Load a ROM into memory at 0x0200 from a sequence of Uint8s
   pub fn load_rom_from_bytes(&mut self, bytes: Vec<u8>) {
     let memory_slice = &mut self.memory[0x200..0x200 + bytes.len()];
     memory_slice.copy_from_slice(bytes.as_slice());
+  }
+
+  pub fn reset(&mut self) {
+    self.pc = 0x0200;
+    self.i = 0;
+    self.stack.clear();
+    self.displayed = false;
+    self.hires_mode = false;
+    self.delay_timer = 0;
+    self.sound_timer = 0;
+    self.keypad = [false; 16];
+    self.registers = [0; 16];
   }
 
   pub fn get_memory(&self) -> Vec<u8> {
