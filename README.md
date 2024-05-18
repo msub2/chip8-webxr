@@ -10,7 +10,6 @@ Currently this interpreter can emulate programs for CHIP-8 and SCHIP (legacy and
 ## Caveats
 
 - Does not support half-pixel scrolling in legacy superchip.
-- The web export has some divergent behavior that I haven't yet been able to trace the source of. This results in some ROMs behaving incorrectly.
 
 ## Development
 
