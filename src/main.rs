@@ -6,14 +6,16 @@ use std::collections::HashMap;
 use pixels::{wgpu::Color, Pixels, SurfaceTexture};
 use rfd::FileDialog;
 use rodio::{source::Source, OutputStream, Sink};
-use muda::{accelerator::{Accelerator, Code, Modifiers}, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu};
+use muda::{
+    accelerator::{Accelerator, Code, Modifiers}, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu
+};
 use winit::{
     dpi::LogicalSize,
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     keyboard::KeyCode,
     raw_window_handle::{HasWindowHandle, RawWindowHandle},
-    window::WindowBuilder,
+    window::WindowBuilder
 };
 use winit_input_helper::WinitInputHelper;
 use chip8::{Chip8, Variant};
@@ -34,6 +36,7 @@ fn main() {
     let mut input = WinitInputHelper::new();
     let (menubar, menubar_items) = create_menubar();
     menubar.init_for_hwnd(hwnd).unwrap();
+    let mut menubar_interaction = "";
 
     // Set up pixels and chip8
     let variant = Variant::XOCHIP;
@@ -64,7 +67,6 @@ fn main() {
             let item_string = menubar_items.get(event.id()).unwrap().to_string();
             match item_string.as_str() {
                 "Load ROM" => {
-                    println!("Load ROM menu item activated");
                     let file = FileDialog::new()
                         .add_filter("ROMs", &["ch8"])
                         .set_directory("./roms")
@@ -77,6 +79,22 @@ fn main() {
                 },
                 _ => {}
             }
+        } else if menubar_interaction != "" {
+            match menubar_interaction {
+                "Load ROM" => {
+                    let file = FileDialog::new()
+                        .add_filter("ROMs", &["ch8"])
+                        .set_directory("./roms")
+                        .pick_file();
+                    if let Some(path) = file {
+                        chip8.reset();
+                        chip8.load_rom_from_file(path.to_str().unwrap());
+                        rom_loaded = true;
+                    }
+                },
+                _ => {}
+            }
+            menubar_interaction = "";
         }
         match event {
             Event::WindowEvent {
@@ -94,42 +112,41 @@ fn main() {
                         println!("pixels.render() failed: {}", err);
                         elwt.exit();
                     }
-                    return;
-                }
-
-                // Run the interpreter
-                for _ in 0..10 {
-                    chip8.run();
-                    if matches!(variant, Variant::CHIP8 | Variant::SCHIP_LEGACY) && chip8.displayed_this_frame() {
-                        break;
+                } else {
+                    // Run the interpreter
+                    for _ in 0..10 {
+                        chip8.run();
+                        if matches!(variant, Variant::CHIP8 | Variant::SCHIP_LEGACY) && chip8.displayed_this_frame() {
+                            break;
+                        }
                     }
-                }
-                chip8.decrement_timers();
-
-                // Resize buffer if we're in hi-res mode
-                if chip8.hires_mode() && pixels.frame().len() == 64 * 32 * 4 {
-                    let _ = pixels.resize_buffer(128, 64);
-                } else if !chip8.hires_mode() && pixels.frame().len() == 128 * 64 * 4 {
-                    let _ = pixels.resize_buffer(64, 32);
-                }
-
-                // Render the display
-                let display = chip8.get_display();
-                let frame = pixels.frame_mut();
-                for (pixel, &value) in frame.chunks_mut(4).zip(display.iter()) {
-                    pixel.copy_from_slice(&[value * 255, value * 255, value * 255, 255]);
-                }
-                if let Err(err) = pixels.render() {
-                    println!("pixels.render() failed: {}", err);
-                    elwt.exit();
-                }
-
-                // Handle audio playback
-                let sound_timer = chip8.get_sound_timer();
-                if sound_timer > 0 && sink.is_paused() {
-                    sink.play();
-                } else if sound_timer == 0 && !sink.is_paused() {
-                    sink.pause();
+                    chip8.decrement_timers();
+    
+                    // Resize buffer if we're in hi-res mode
+                    if chip8.hires_mode() && pixels.frame().len() == 64 * 32 * 4 {
+                        let _ = pixels.resize_buffer(128, 64);
+                    } else if !chip8.hires_mode() && pixels.frame().len() == 128 * 64 * 4 {
+                        let _ = pixels.resize_buffer(64, 32);
+                    }
+    
+                    // Render the display
+                    let display = chip8.get_display();
+                    let frame = pixels.frame_mut();
+                    for (pixel, &value) in frame.chunks_mut(4).zip(display.iter()) {
+                        pixel.copy_from_slice(&[value * 255, value * 255, value * 255, 255]);
+                    }
+                    if let Err(err) = pixels.render() {
+                        println!("pixels.render() failed: {}", err);
+                        elwt.exit();
+                    }
+    
+                    // Handle audio playback
+                    let sound_timer = chip8.get_sound_timer();
+                    if sound_timer > 0 && sink.is_paused() {
+                        sink.play();
+                    } else if sound_timer == 0 && !sink.is_paused() {
+                        sink.pause();
+                    }
                 }
             },
             _ => ()
@@ -164,6 +181,10 @@ fn main() {
                 } else if input.key_released(key) {
                     chip8.set_keypad_state(value, false);
                 }
+            }
+
+            if input.held_control() && input.key_pressed(KeyCode::KeyO) {
+                menubar_interaction = "Load ROM";
             }
         }
     });
