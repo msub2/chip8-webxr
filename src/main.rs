@@ -12,10 +12,10 @@ use muda::{
 use winit::{
     dpi::LogicalSize,
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
     keyboard::KeyCode,
     raw_window_handle::{HasWindowHandle, RawWindowHandle},
-    window::WindowBuilder
+    window::{Window, WindowBuilder}
 };
 use winit_input_helper::WinitInputHelper;
 use chip8::{Chip8, Variant};
@@ -37,6 +37,7 @@ fn main() {
     let (menubar, menubar_items) = create_menubar();
     menubar.init_for_hwnd(hwnd).unwrap();
     let mut menubar_interaction = "";
+    let mut windows: Vec<Window> = Vec::new();
 
     // Set up pixels and chip8
     let variant = Variant::XOCHIP;
@@ -80,11 +81,14 @@ fn main() {
                 "Quit" => {
                     elwt.exit();
                 },
+                "About" => {
+                    windows.push(create_about_window(elwt));
+                }
                 _ => {}
             }
         } else if menubar_interaction != "" {
             // I don't love this but it's conceptually easier than messing around
-            // with the Windows API I'd have to interact with
+            // with the Windows API I'd have to interact with for accelerators
             match menubar_interaction {
                 "Load ROM" => {
                     let file = FileDialog::new()
@@ -104,10 +108,17 @@ fn main() {
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
-                ..
+                window_id: id,
             } => {
-                println!("The close button was pressed; stopping");
-                elwt.exit();
+                for i in 0..windows.len() {
+                    if windows[i].id() == id {
+                        windows.remove(i);
+                        break;
+                    }
+                }
+                if id == window.id() {
+                    elwt.exit();
+                }
             },
             Event::AboutToWait => {
                 if !rom_loaded {
@@ -158,11 +169,6 @@ fn main() {
         }
 
         if input.update(&event) {
-            // Close events
-            if input.close_requested() {
-                elwt.exit();
-            }
-
             for (key, value) in [
                 (KeyCode::Digit1, 0),
                 (KeyCode::Digit2, 1),
@@ -241,4 +247,13 @@ fn create_menubar() -> (Menu, HashMap<MenuId, String>) {
     menu_ids.insert(about.id().clone(), "About".to_string());
 
     (menu, menu_ids)
+}
+
+fn create_about_window(elwt: &EventLoopWindowTarget<()>) -> Window {
+    WindowBuilder::new()
+        .with_title("About")
+        .with_resizable(false)
+        .with_inner_size(LogicalSize::new(200, 100))
+        .build(&elwt)
+        .unwrap()
 }
