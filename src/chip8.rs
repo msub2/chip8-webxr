@@ -128,6 +128,7 @@ impl Chip8 {
     self.pc = 0x0200;
     self.i = 0;
     self.stack.clear();
+    self.display.fill(0);
     self.displayed = false;
     self.hires_mode = false;
     self.delay_timer = 0;
