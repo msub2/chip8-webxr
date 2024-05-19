@@ -77,9 +77,14 @@ fn main() {
                         rom_loaded = true;
                     }
                 },
+                "Quit" => {
+                    elwt.exit();
+                },
                 _ => {}
             }
         } else if menubar_interaction != "" {
+            // I don't love this but it's conceptually easier than messing around
+            // with the Windows API I'd have to interact with
             match menubar_interaction {
                 "Load ROM" => {
                     let file = FileDialog::new()
@@ -154,7 +159,7 @@ fn main() {
 
         if input.update(&event) {
             // Close events
-            if input.key_pressed(KeyCode::Escape) || input.close_requested() {
+            if input.close_requested() {
                 elwt.exit();
             }
 
@@ -192,22 +197,48 @@ fn main() {
 
 fn create_menubar() -> (Menu, HashMap<MenuId, String>) {
     let menu = Menu::new();
+
+    // File Tab
     let load_rom = MenuItem::new(
         "Load ROM",
         true,
         Some(Accelerator::new(Some(Modifiers::CONTROL), Code::KeyO)),
     );
-    let submenu = Submenu::with_items(
+    let quit = MenuItem::new(
+        "Quit",
+        true,
+        None,
+    );
+    let file_tab = Submenu::with_items(
         "File",
         true,
         &[
-            &load_rom
+            &load_rom,
+            &PredefinedMenuItem::separator(),
+            &quit,
         ],
     ).unwrap();
-    menu.append(&submenu).unwrap();
+    menu.append(&file_tab).unwrap();
+
+    // Help Tab
+    let about = MenuItem::new(
+        "About",
+        true,
+        None,
+    );
+    let help_tab = Submenu::with_items(
+        "Help",
+        true,
+        &[
+            &about,
+        ],
+    ).unwrap();
+    menu.append(&help_tab).unwrap();
 
     let mut menu_ids = HashMap::new();
     menu_ids.insert(load_rom.id().clone(), "Load ROM".to_string());
+    menu_ids.insert(quit.id().clone(), "Quit".to_string());
+    menu_ids.insert(about.id().clone(), "About".to_string());
 
     (menu, menu_ids)
 }
