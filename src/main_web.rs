@@ -1,4 +1,10 @@
+mod chip8;
+mod square_wave;
+
+use lazy_static::lazy_static;
 use pixels::{Pixels, SurfaceTexture};
+use rodio::{source::Source, OutputStream, Sink};
+
 use std::{
   rc::Rc,
   sync::{
@@ -6,39 +12,33 @@ use std::{
     Mutex
   }
 };
-use winit_input_helper::WinitInputHelper;
-use lazy_static::lazy_static;
-
-mod chip8;
-mod square_wave;
-
-use rodio::{source::Source, OutputStream, Sink};
 use winit::{
     dpi::LogicalSize,
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     keyboard::KeyCode,
-    window::{Window, WindowBuilder},
+    window::WindowBuilder,
 };
+use winit_input_helper::WinitInputHelper;
 use chip8::{Chip8, Variant};
 use square_wave::SquareWave;
 
-#[cfg(target_arch = "wasm32")]
+// Web-specific imports
 use wasm_bindgen::prelude::*;
-
 use web_time::{Instant, Duration};
+use winit::platform::web::WindowExtWebSys;
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
+#[wasm_bindgen(start)]
 fn main() {
-  #[cfg(target_arch = "wasm32")]
-  {
-    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-    console_log::init_with_level(log::Level::Warn).expect("error initializing logger");
+  std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+  console_log::init_with_level(log::Level::Warn).expect("error initializing logger");
 
-    wasm_bindgen_futures::spawn_local(run());
-  }
+  wasm_bindgen_futures::spawn_local(run());
 }
 
+// I need to allow for ROMs to be loaded when called from a function outside the event loop
+// and this was the best way I could think to do it. Also helps to forward keypad state when
+// getting it from non-keyboard sources, like the in-world WebXR keypad, which winit can't get.
 lazy_static! {
   static ref HAS_ROM: AtomicBool = AtomicBool::new(false);
   static ref ROM_CHANGED: AtomicBool = AtomicBool::new(false);
@@ -56,34 +56,31 @@ async fn run() {
   let mut input = WinitInputHelper::new();
   let window = Rc::new(window);
   let mut prev_frame_time = Instant::now();
-  #[cfg(target_arch = "wasm32")]
-  {
-    use winit::platform::web::WindowExtWebSys;
 
-    // Retrieve current width and height dimensions of browser client window
-    let get_window_size = || {
-      let client_window = web_sys::window().unwrap();
-      LogicalSize::new(
-        client_window.inner_width().unwrap().as_f64().unwrap(),
-        client_window.inner_height().unwrap().as_f64().unwrap(),
-      )
-    };
+  // Retrieve current width and height dimensions of browser client window
+  let get_window_size = || {
+    let client_window = web_sys::window().unwrap();
+    LogicalSize::new(
+      client_window.inner_width().unwrap().as_f64().unwrap(),
+      client_window.inner_height().unwrap().as_f64().unwrap(),
+    )
+  };
 
-    let window = Rc::clone(&window);
+  let window = Rc::clone(&window);
 
-    // Initialize winit window with current dimensions of browser client
-    window.set_min_inner_size(Some(get_window_size()));
+  // Initialize winit window with current dimensions of browser client
+  window.set_min_inner_size(Some(get_window_size()));
 
-    // Attach winit canvas to body element
-    web_sys::window()
-      .and_then(|win| win.document())
-      .and_then(|doc| doc.body())
-      .and_then(|body| {
-        body.append_child(&web_sys::Element::from(window.canvas()?))
-          .ok()
-      })
-      .expect("couldn't append canvas to document body");
-  }
+  // Attach winit canvas to body element
+  web_sys::window()
+    .and_then(|win| win.document())
+    .and_then(|doc| doc.body())
+    .and_then(|body| {
+      body.append_child(&web_sys::Element::from(window.canvas()?))
+        .ok()
+    })
+    .expect("couldn't append canvas to document body");
+
   let variant = Variant::XOCHIP;
   let mut chip8 = Chip8::new(variant);
   let mut pixels = {
@@ -98,6 +95,7 @@ async fn run() {
   let sink = Sink::try_new(&stream_handle).unwrap();
   let source = SquareWave::new(440.0).amplify(0.10);
   sink.append(source);
+  sink.pause();
 
   event_loop.set_control_flow(ControlFlow::Poll);
 
@@ -121,8 +119,10 @@ async fn run() {
           }
         }
 
-        if Instant::now() - prev_frame_time > Duration::from_millis(17) {
+        // We want winit to update roughly at 60 FPS and this is the best way I could think to do it
+        if Instant::now() - prev_frame_time >= Duration::from_millis(16) {
           prev_frame_time = Instant::now();
+
           for _ in 0..10 {
             chip8.run();
             if matches!(variant, Variant::CHIP8 | Variant::SCHIP_LEGACY) && chip8.displayed_this_frame() {
@@ -193,14 +193,14 @@ async fn run() {
   });
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
+#[wasm_bindgen]
 pub fn load_rom(bytes: Vec<u8>) {
   ROM_BYTES.lock().unwrap().clear();
   ROM_BYTES.lock().unwrap().extend_from_slice(&bytes);
   ROM_CHANGED.store(true, Ordering::Relaxed);
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
+#[wasm_bindgen]
 pub fn set_keypad_state(keypad: u8, state: bool) {
   KEYPAD_STATE.lock().unwrap()[keypad as usize] = state;
 }

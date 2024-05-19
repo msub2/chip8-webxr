@@ -38,6 +38,14 @@
     chipCanvas.style.position = 'fixed';
     chipCanvas.style.zIndex = -2;
 
+    // Using the canvas from winit directly results in significant framerate/sync issues,
+    // but we can create a second canvas that we just copy the image to, which displays
+    // just fine
+    let inWorldCanvas = document.createElement('canvas');
+    inWorldCanvas.width = 640;
+    inWorldCanvas.height = 320;
+    let inWorldCtx = inWorldCanvas.getContext('2d');
+
     // Load ROM
     const rom = await fetch('../roms/test/5-quirks.ch8');
     const romBuffer = await rom.arrayBuffer();
@@ -162,7 +170,7 @@
     controls.update();
 
     const planeGeometry = new THREE.PlaneGeometry(2, 1);
-    const texture = new THREE.CanvasTexture(chipCanvas);
+    const texture = new THREE.CanvasTexture(inWorldCanvas);
     const material = new THREE.MeshBasicMaterial({ map: texture });
     const plane = new THREE.Mesh(planeGeometry, material);
     plane.position.set(0, 1.6, -2);
@@ -360,6 +368,7 @@
 
     function draw() {
       renderer.render(scene, camera);
+      inWorldCtx.drawImage(chipCanvas, 0, 0);
       texture.needsUpdate = true;
       updateButtons();
       ThreeMeshUI.update();
