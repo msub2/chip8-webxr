@@ -3,7 +3,7 @@ mod square_wave;
 
 use std::collections::HashMap;
 
-use pixels::{Pixels, SurfaceTexture};
+use pixels::{wgpu::Color, Pixels, SurfaceTexture};
 use rfd::FileDialog;
 use rodio::{source::Source, OutputStream, Sink};
 use muda::{accelerator::{Accelerator, Code, Modifiers}, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu};
@@ -46,6 +46,7 @@ fn main() {
         let initial_height = if variant == Variant::SCHIP_LEGACY { 64 } else { 32 };
         Pixels::new(initial_width, initial_height, surface_texture).unwrap()
     };
+    pixels.clear_color(Color::BLACK);
     chip8.load_font();
 
     // Set up rodio
@@ -86,7 +87,15 @@ fn main() {
                 elwt.exit();
             },
             Event::AboutToWait => {
-                if !rom_loaded { return; }
+                if !rom_loaded {
+                    let frame = pixels.frame_mut();
+                    frame.fill(0);
+                    if let Err(err) = pixels.render() {
+                        println!("pixels.render() failed: {}", err);
+                        elwt.exit();
+                    }
+                    return;
+                }
 
                 // Run the interpreter
                 for _ in 0..10 {
