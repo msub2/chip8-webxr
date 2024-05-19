@@ -24,16 +24,22 @@ use chip8::{Chip8, Variant};
 use square_wave::SquareWave;
 
 // Web-specific imports
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
+#[cfg(target_arch = "wasm32")]
 use web_time::{Instant, Duration};
+#[cfg(target_arch = "wasm32")]
 use winit::platform::web::WindowExtWebSys;
 
-#[wasm_bindgen(start)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 fn main() {
-  std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-  console_log::init_with_level(log::Level::Warn).expect("error initializing logger");
-
-  wasm_bindgen_futures::spawn_local(run());
+  #[cfg(target_arch = "wasm32")]
+  {
+    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+    console_log::init_with_level(log::Level::Warn).expect("error initializing logger");
+  
+    wasm_bindgen_futures::spawn_local(run());
+  }
 }
 
 // I need to allow for ROMs to be loaded when called from a function outside the event loop
@@ -46,6 +52,7 @@ lazy_static! {
   static ref KEYPAD_STATE: Mutex<Vec<bool>> = Mutex::new(vec![false; 16]);
 }
 
+#[cfg(target_arch = "wasm32")]
 async fn run() {
   let event_loop = EventLoop::new().unwrap();
   let window = WindowBuilder::new()
@@ -193,14 +200,14 @@ async fn run() {
   });
 }
 
-#[wasm_bindgen]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 pub fn load_rom(bytes: Vec<u8>) {
   ROM_BYTES.lock().unwrap().clear();
   ROM_BYTES.lock().unwrap().extend_from_slice(&bytes);
   ROM_CHANGED.store(true, Ordering::Relaxed);
 }
 
-#[wasm_bindgen]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 pub fn set_keypad_state(keypad: u8, state: bool) {
   KEYPAD_STATE.lock().unwrap()[keypad as usize] = state;
 }
