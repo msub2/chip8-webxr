@@ -12,7 +12,7 @@ use muda::{
 use winit::{
     dpi::LogicalSize,
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
+    event_loop::{ControlFlow, EventLoop},
     keyboard::KeyCode,
     raw_window_handle::{HasWindowHandle, RawWindowHandle},
     window::{Window, WindowBuilder}
@@ -20,6 +20,10 @@ use winit::{
 use winit_input_helper::WinitInputHelper;
 use chip8::{Chip8, Variant};
 use square_wave::SquareWave;
+
+use fltk::{
+    app, browser::Browser, prelude::*, window::Window as FLTKWindow
+};
 
 fn main() {
     // Set up winit and menubar
@@ -82,7 +86,7 @@ fn main() {
                     elwt.exit();
                 },
                 "About" => {
-                    windows.push(create_about_window(elwt));
+                    create_about_window();
                 }
                 _ => {}
             }
@@ -249,11 +253,16 @@ fn create_menubar() -> (Menu, HashMap<MenuId, String>) {
     (menu, menu_ids)
 }
 
-fn create_about_window(elwt: &EventLoopWindowTarget<()>) -> Window {
-    WindowBuilder::new()
-        .with_title("About")
-        .with_resizable(false)
-        .with_inner_size(LogicalSize::new(200, 100))
-        .build(&elwt)
-        .unwrap()
+fn create_about_window() {
+    let app = app::App::default();
+    let mut window = FLTKWindow::new(0, 0, 400, 300, "About");
+    let mut browser = Browser::new(0, 0, 400, 300, None);
+    browser.set_frame(fltk::enums::FrameType::FlatBox);
+    for _ in 0..8 { browser.add(""); }
+    browser.add("@c Created by Daniel Adams");
+    browser.add("@c Version 0.1.0");
+    window.add(&browser);
+    window.end();
+    window.show();
+    app.run().unwrap();
 }
