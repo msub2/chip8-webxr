@@ -226,6 +226,9 @@
           backgroundOpacity: 1,
           fontColor: new THREE.Color(0xffffff)
         },
+        onSet: () => {
+          set_keypad_state(index, false);
+        }
       };
       const idleState = {
         state: 'idle',
