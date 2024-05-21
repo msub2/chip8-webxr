@@ -3,59 +3,22 @@ mod square_wave;
 
 use std::collections::HashMap;
 
-use pixels::{wgpu::Color, Pixels, SurfaceTexture};
+use eframe::egui;
+use egui::Key;
+use muda::{accelerator::{Accelerator, Code, Modifiers}, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu};
 use rfd::FileDialog;
 use rodio::{source::Source, OutputStream, Sink};
-use muda::{
-    accelerator::{Accelerator, Code, Modifiers}, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu
-};
-use winit::{
-    dpi::LogicalSize,
-    event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    keyboard::KeyCode,
-    raw_window_handle::{HasWindowHandle, RawWindowHandle},
-    window::{Window, WindowBuilder}
-};
-use winit_input_helper::WinitInputHelper;
+use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
+
 use chip8::{Chip8, Variant};
 use square_wave::SquareWave;
 
-use fltk::{
-    app, browser::Browser, prelude::*, window::Window as FLTKWindow
-};
-
-fn main() {
-    // Set up winit and menubar
-    let event_loop = EventLoop::new().unwrap();
-    let window = WindowBuilder::new()
-        .with_inner_size(LogicalSize::new(640, 320))
-        .with_title("SILK-8")
-        .build(&event_loop)
-        .unwrap();
-    let hwnd = match window.window_handle().unwrap().as_raw() {
-        RawWindowHandle::Win32(handle) => handle.hwnd.get(),
-        _ => panic!("Cannot handle other platform window handles yet!"),
+fn main() -> Result<(), eframe::Error> {
+    // Set window options, main important one here is min_inner_size so our window accounts for menubar insertion
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default().with_inner_size([640.0, 320.0]).with_min_inner_size([640.0, 320.0]),
+        ..Default::default()
     };
-    let mut input = WinitInputHelper::new();
-    let (menubar, menubar_items) = create_menubar();
-    menubar.init_for_hwnd(hwnd).unwrap();
-    let mut menubar_interaction = "";
-    let mut windows: Vec<Window> = Vec::new();
-
-    // Set up pixels and chip8
-    let variant = Variant::XOCHIP;
-    let mut chip8 = Chip8::new(variant);
-    let mut rom_loaded = false;
-    let mut pixels = {
-        let window_size = window.inner_size();
-        let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
-        let initial_width = if variant == Variant::SCHIP_LEGACY { 128 } else { 64 };
-        let initial_height = if variant == Variant::SCHIP_LEGACY { 64 } else { 32 };
-        Pixels::new(initial_width, initial_height, surface_texture).unwrap()
-    };
-    pixels.clear_color(Color::BLACK);
-    chip8.load_font();
 
     // Set up rodio
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
@@ -64,12 +27,48 @@ fn main() {
     sink.append(source);
     sink.pause();
 
-    // Run the event loop
-    event_loop.set_control_flow(ControlFlow::Poll);
-    let _ = event_loop.run(move |event, elwt| {
+    let silk8 = SILK8 {
+        show_about_window: false,
+        menubar: None,
+        menubar_items: HashMap::new(),
+        menubar_interaction: "".to_string(),
+        chip8: Chip8::new(Variant::XOCHIP),
+        variant: Variant::XOCHIP,
+        rom_loaded: false,
+        sink,
+    };
+    eframe::run_native(
+        "SILK-8",
+        options,
+        Box::new(|_cc| Box::<SILK8>::new(silk8)),
+    )
+}
+
+struct SILK8 {
+    /// Immediate viewports are show immediately, so passing state to/from them is easy.
+    /// The downside is that their painting is linked with the parent viewport:
+    /// if either needs repainting, they are both repainted.
+    show_about_window: bool,
+
+    menubar: Option<Menu>,
+    menubar_items: HashMap<MenuId, String>,
+    menubar_interaction: String,
+
+    chip8: Chip8,
+    variant: Variant,
+    rom_loaded: bool,
+
+    sink: Sink,
+}
+
+impl eframe::App for SILK8 {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui_extras::install_image_loaders(ctx);
+        ctx.request_repaint();
+
         // Check for interactions on the menubar
         if let Ok(event) = MenuEvent::receiver().try_recv() {
-            let item_string = menubar_items.get(event.id()).unwrap().to_string();
+            let item_string = self.menubar_items.get(event.id()).unwrap();
             match item_string.as_str() {
                 "Load ROM" => {
                     let file = FileDialog::new()
@@ -77,132 +76,146 @@ fn main() {
                         .set_directory("./roms")
                         .pick_file();
                     if let Some(path) = file {
-                        chip8.reset();
-                        chip8.load_rom_from_file(path.to_str().unwrap());
-                        rom_loaded = true;
+                        self.chip8.reset();
+                        self.chip8.load_rom_from_file(path.to_str().unwrap());
+                        self.rom_loaded = true;
                     }
                 },
                 "Quit" => {
-                    elwt.exit();
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 },
                 "About" => {
-                    create_about_window();
+                    self.show_about_window = true;
                 }
                 _ => {}
             }
-        } else if menubar_interaction != "" {
+        } else if self.menubar_interaction != "" {
             // I don't love this but it's conceptually easier than messing around
             // with the Windows API I'd have to interact with for accelerators
-            match menubar_interaction {
+            match self.menubar_interaction.to_owned().as_str() {
                 "Load ROM" => {
                     let file = FileDialog::new()
                         .add_filter("ROMs", &["ch8"])
                         .set_directory("./roms")
                         .pick_file();
                     if let Some(path) = file {
-                        chip8.reset();
-                        chip8.load_rom_from_file(path.to_str().unwrap());
-                        rom_loaded = true;
+                        self.chip8.reset();
+                        self.chip8.load_rom_from_file(path.to_str().unwrap());
+                        self.rom_loaded = true;
                     }
                 },
                 _ => {}
             }
-            menubar_interaction = "";
-        }
-        match event {
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                window_id: id,
-            } => {
-                for i in 0..windows.len() {
-                    if windows[i].id() == id {
-                        windows.remove(i);
-                        break;
-                    }
-                }
-                if id == window.id() {
-                    elwt.exit();
-                }
-            },
-            Event::AboutToWait => {
-                if !rom_loaded {
-                    let frame = pixels.frame_mut();
-                    frame.fill(0);
-                    if let Err(err) = pixels.render() {
-                        println!("pixels.render() failed: {}", err);
-                        elwt.exit();
-                    }
-                } else {
-                    // Run the interpreter
-                    for _ in 0..10 {
-                        chip8.run();
-                        if matches!(variant, Variant::CHIP8 | Variant::SCHIP_LEGACY) && chip8.displayed_this_frame() {
-                            break;
-                        }
-                    }
-                    chip8.decrement_timers();
-    
-                    // Resize buffer if we're in hi-res mode
-                    if chip8.hires_mode() && pixels.frame().len() == 64 * 32 * 4 {
-                        let _ = pixels.resize_buffer(128, 64);
-                    } else if !chip8.hires_mode() && pixels.frame().len() == 128 * 64 * 4 {
-                        let _ = pixels.resize_buffer(64, 32);
-                    }
-    
-                    // Render the display
-                    let display = chip8.get_display();
-                    let frame = pixels.frame_mut();
-                    for (pixel, &value) in frame.chunks_mut(4).zip(display.iter()) {
-                        pixel.copy_from_slice(&[value * 255, value * 255, value * 255, 255]);
-                    }
-                    if let Err(err) = pixels.render() {
-                        println!("pixels.render() failed: {}", err);
-                        elwt.exit();
-                    }
-    
-                    // Handle audio playback
-                    let sound_timer = chip8.get_sound_timer();
-                    if sound_timer > 0 && sink.is_paused() {
-                        sink.play();
-                    } else if sound_timer == 0 && !sink.is_paused() {
-                        sink.pause();
-                    }
-                }
-            },
-            _ => ()
+            self.menubar_interaction = "".to_string();
         }
 
-        if input.update(&event) {
-            for (key, value) in [
-                (KeyCode::Digit1, 0),
-                (KeyCode::Digit2, 1),
-                (KeyCode::Digit3, 2),
-                (KeyCode::Digit4, 3),
-                (KeyCode::KeyQ, 4),
-                (KeyCode::KeyW, 5),
-                (KeyCode::KeyE, 6),
-                (KeyCode::KeyR, 7),
-                (KeyCode::KeyA, 8),
-                (KeyCode::KeyS, 9),
-                (KeyCode::KeyD, 10),
-                (KeyCode::KeyF, 11),
-                (KeyCode::KeyZ, 12),
-                (KeyCode::KeyX, 13),
-                (KeyCode::KeyC, 14),
-                (KeyCode::KeyV, 15),
-            ] {
-                if input.key_pressed(key) {
-                    chip8.set_keypad_state(value, true);
-                } else if input.key_released(key) {
-                    chip8.set_keypad_state(value, false);
+        if self.rom_loaded {
+            // Run the interpreter
+            for _ in 0..10 {
+                self.chip8.run();
+                if matches!(self.variant, Variant::CHIP8 | Variant::SCHIP_LEGACY) && self.chip8.displayed_this_frame() {
+                    break;
                 }
             }
+            self.chip8.decrement_timers();
 
-            if input.held_control() && input.key_pressed(KeyCode::KeyO) {
-                menubar_interaction = "Load ROM";
+            // Handle audio playback
+            let sound_timer = self.chip8.get_sound_timer();
+            if sound_timer > 0 && self.sink.is_paused() {
+                self.sink.play();
+            } else if sound_timer == 0 && !self.sink.is_paused() {
+                self.sink.pause();
             }
         }
-    });
+
+        // Render the display to a texture for egui
+        let display_height = if self.chip8.hires_mode() { 64 } else { 32 };
+        let display_width = if self.chip8.hires_mode() { 128 } else { 64 };
+        let pixels = self.chip8.get_display()
+            .iter()
+            .map(|b| if *b == 1 { [255_u8, 255_u8, 255_u8] } else { [0_u8, 0_u8, 0_u8] })
+            .flatten()
+            .collect::<Vec<u8>>();
+        let pixels_range = &pixels[0..display_height * display_width * 3];
+        let color_image = egui::ColorImage::from_rgb([display_width, display_height], pixels_range);
+        let handle = ctx.load_texture("Display", color_image, egui::TextureOptions::NEAREST);
+
+        // Draw main window
+        egui::CentralPanel::default().frame(egui::Frame::none()).show(ctx, |ui| {
+            if self.menubar.is_none() {
+                let handle = _frame.window_handle().unwrap().as_raw();
+                let hwnd = match handle {
+                    RawWindowHandle::Win32(handle) => handle.hwnd.get(),
+                    _ => panic!("Cannot handle other platform window handles yet!"),
+                };
+                let (menubar, menubar_items) = create_menubar();
+                menubar.init_for_hwnd(hwnd).unwrap();
+                self.menubar = Some(menubar);
+                self.menubar_items = menubar_items;
+            }
+
+            let sized_image = egui::load::SizedTexture::new(handle.id(), egui::vec2(640.0, 320.0));
+            let image = egui::Image::from_texture(sized_image);
+            ui.add(image);
+        });
+
+        // Draw about window, if activve
+        if self.show_about_window {
+            ctx.show_viewport_immediate(
+                egui::ViewportId::from_hash_of("about_window"),
+                egui::ViewportBuilder::default()
+                    .with_title("About")
+                    .with_inner_size([256.0, 128.0]),
+                |ctx, class| {
+                    assert!(
+                        class == egui::ViewportClass::Immediate,
+                        "This egui backend doesn't support multiple viewports"
+                    );
+
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        ui.vertical_centered(|ui| {
+                            ui.label("Created by Daniel Adams");
+                        })
+                    });
+
+                    if ctx.input(|i| i.viewport().close_requested()) {
+                        // Tell parent viewport that we should not show next frame:
+                        self.show_about_window = false;
+                    }
+                },
+            );
+        }
+
+        // Handle input
+        for (key, value) in [
+            (Key::Num1, 0),
+            (Key::Num2, 1),
+            (Key::Num3, 2),
+            (Key::Num4, 3),
+            (Key::Q, 4),
+            (Key::W, 5),
+            (Key::E, 6),
+            (Key::R, 7),
+            (Key::A, 8),
+            (Key::S, 9),
+            (Key::D, 10),
+            (Key::F, 11),
+            (Key::Z, 12),
+            (Key::X, 13),
+            (Key::C, 14),
+            (Key::V, 15),
+        ] {
+            if ctx.input(|i| i.key_down(key)) {
+                self.chip8.set_keypad_state(value, true);
+            } else if ctx.input(|i| i.key_released(key)) {
+                self.chip8.set_keypad_state(value, false);
+            }
+        }
+
+        if ctx.input(|i| i.modifiers.ctrl) && ctx.input(|i| i.key_pressed(Key::O)) {
+            self.menubar_interaction = "Load ROM".to_string();
+        }
+    }
 }
 
 fn create_menubar() -> (Menu, HashMap<MenuId, String>) {
@@ -251,18 +264,4 @@ fn create_menubar() -> (Menu, HashMap<MenuId, String>) {
     menu_ids.insert(about.id().clone(), "About".to_string());
 
     (menu, menu_ids)
-}
-
-fn create_about_window() {
-    let app = app::App::default();
-    let mut window = FLTKWindow::new(0, 0, 400, 300, "About");
-    let mut browser = Browser::new(0, 0, 400, 300, None);
-    browser.set_frame(fltk::enums::FrameType::FlatBox);
-    for _ in 0..8 { browser.add(""); }
-    browser.add("@c Created by Daniel Adams");
-    browser.add("@c Version 0.1.0");
-    window.add(&browser);
-    window.end();
-    window.show();
-    app.run().unwrap();
 }
