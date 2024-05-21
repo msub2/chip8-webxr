@@ -41,8 +41,11 @@ fn main() {
   sink.append(source);
   sink.pause();
 
+  let mut chip8 = Chip8::new(Variant::XOCHIP);
+  chip8.load_font();
+
   let silk8 = SILK8 {
-      chip8: Chip8::new(Variant::XOCHIP),
+      chip8,
       variant: Variant::XOCHIP,
       rom_loaded: false,
       sink,

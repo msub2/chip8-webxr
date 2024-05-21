@@ -20,6 +20,9 @@ fn main() -> Result<(), eframe::Error> {
         ..Default::default()
     };
 
+    let mut chip8 = Chip8::new(Variant::XOCHIP);
+    chip8.load_font();
+
     // Set up rodio
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
     let sink = Sink::try_new(&stream_handle).unwrap();
@@ -32,7 +35,7 @@ fn main() -> Result<(), eframe::Error> {
         menubar: None,
         menubar_items: HashMap::new(),
         menubar_interaction: "".to_string(),
-        chip8: Chip8::new(Variant::XOCHIP),
+        chip8,
         variant: Variant::XOCHIP,
         rom_loaded: false,
         sink,
