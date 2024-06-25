@@ -146,13 +146,20 @@ impl eframe::App for SILK8 {
         // Draw main window
         egui::CentralPanel::default().frame(egui::Frame::none()).show(ctx, |ui| {
             if self.menubar.is_none() {
-                let handle = _frame.window_handle().unwrap().as_raw();
-                let hwnd = match handle {
-                    RawWindowHandle::Win32(handle) => handle.hwnd.get(),
-                    _ => panic!("Cannot handle other platform window handles yet!"),
-                };
                 let (menubar, menubar_items) = create_menubar();
-                menubar.init_for_hwnd(hwnd).unwrap();
+                #[cfg(target_os = "windows")]
+                {
+                    let handle = _frame.window_handle().unwrap().as_raw();
+                    let hwnd = match handle {
+                        RawWindowHandle::Win32(handle) => handle.hwnd.get(),
+                        _ => panic!("Cannot handle other platform window handles yet!"),
+                    };
+                    menubar.init_for_hwnd(hwnd).unwrap();
+                }
+                #[cfg(target_os = "macos")]
+                {
+                    menubar.init_for_nsapp();
+                }
                 self.menubar = Some(menubar);
                 self.menubar_items = menubar_items;
             }
